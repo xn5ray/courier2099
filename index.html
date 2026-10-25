@@ -217,6 +217,11 @@ background:repeating-radial-gradient(circle,rgba(0,240,255,.35) 0 2px,transparen
 @keyframes rot{to{transform:rotate(360deg)}}
 @keyframes flashred{50%{background:rgba(255,56,96,.4)}}
 @keyframes glitch{0%,92%,100%{transform:none}93%{transform:translate(-3px,1px) skewX(6deg)}95%{transform:translate(3px,-1px)}97%{transform:translate(-2px,0) skewX(-6deg)}}
+#edMap{position:absolute;inset:0;background:#05060a}
+#edInfo{font-size:13px;line-height:1.5;color:#9fb3d1;margin-bottom:8px}
+#edInfo b{color:var(--cyan)}
+#edBtns{display:flex;flex-wrap:wrap;gap:6px}
+#edBtns .btn{flex:1 1 45%;width:auto;margin:0}
 </style>
 </head>
 <body>
@@ -238,6 +243,7 @@ background:repeating-radial-gradient(circle,rgba(0,240,255,.35) 0 2px,transparen
       <button class="btn big" id="btnStart">▶ START MISJI</button>
       <button class="btn pink" id="btnResume" hidden>⟲ WZNÓW MISJĘ</button>
       <button class="btn" id="btnShop">⛁ KRYJÓWKA · THE SAFEHOUSE</button>
+      <button class="btn" id="btnEditor">✎ EDYTOR PUNKTÓW</button>
       <button class="btn small pink" id="btnResetCred">✖ ZRESETUJ KASĘ (₵)</button>
       <div class="toggles">
         <label><input type="checkbox" id="optSound"> DŹWIĘK</label>
@@ -268,6 +274,18 @@ background:repeating-radial-gradient(circle,rgba(0,240,255,.35) 0 2px,transparen
     </div>
   </section>
 
+  <!-- ================= POINT EDITOR ================= -->
+  <section id="editor" class="screen">
+    <div id="edMap"></div>
+    <div class="hud top">
+      <div class="cell"><span>EDYTOR · AKTYWNE PUNKTY</span><b id="edCount">0</b></div>
+      <button class="abort" id="edBack" style="border-color:var(--cyan);color:var(--cyan)">◀</button>
+    </div>
+    <div class="hud bottom">
+      <div class="panel-b"><div id="edInfo"></div><div id="edBtns"></div></div>
+    </div>
+  </section>
+
   <!-- ================= GAME ================= -->
   <section id="game" class="screen">
     <div id="map"></div>
@@ -291,6 +309,7 @@ background:repeating-radial-gradient(circle,rgba(0,240,255,.35) 0 2px,transparen
         </div>
         <div id="evRow" class="ev" hidden><span id="evTxt"></span><button class="btn pink" id="btnRelay" hidden>PRZECHWYĆ</button></div>
         <button class="btn big" id="btnAct" disabled>CZEKAM NA GPS…</button>
+        <button class="btn small pink" id="btnBlocked">✖ CEL NIEDOSTĘPNY — ZAMIEŃ</button>
         <div id="dbg" hidden style="display:flex;gap:8px"><button class="btn small pink" id="dbgPatrol">TEST: PATROL</button><button class="btn small pink" id="dbgRelay">TEST: PRZEKAZ</button><button class="btn small pink" id="dbgNext">TEST: NASTĘPNY EVENT</button><button class="btn small pink" id="dbgMg">TEST: KOLEJNA MINIGRA</button></div>
         <div class="gps-row"><span id="gpsInfo">GPS: --</span><span id="compInfo"></span></div>
       </div>
@@ -686,6 +705,96 @@ function genPresetTargets(base) {
   return null;
 }
 
+/* ================= EDYTOR PUNKTÓW ================= */
+const PTS_KEY = 'courier2099.pts.v1';
+const DEF_PTS = AREA.points.map((p, i) => ({ s: p.s, lat: p.lat, lng: p.lng, id: i }));
+const DEF_FIX = FIXED_ROUTES.map(r => r.pts.map(q => ({ lat: q.lat, lng: q.lng })));
+let pe = { removed: [], moved: {}, added: [], fmoved: {} };
+try { const o = JSON.parse(localStorage.getItem(PTS_KEY)); if (o && typeof o === 'object') pe = Object.assign(pe, o); } catch (e) {}
+const savePe = () => { try { localStorage.setItem(PTS_KEY, JSON.stringify(pe)); } catch (e) {} };
+function applyPts() {
+  AREA.points = DEF_PTS.filter(p => !pe.removed.includes(p.id)).map(p => Object.assign({}, p, pe.moved[p.id] || {}))
+    .concat(pe.added.map(a => ({ s: a.s, lat: a.lat, lng: a.lng, id: a.id })));
+  FIXED_ROUTES.forEach((r, ri) => r.pts.forEach((q, qi) => { const m = pe.fmoved[ri + '-' + qi], d = DEF_FIX[ri][qi]; q.lat = m ? m.lat : d.lat; q.lng = m ? m.lng : d.lng; }));
+}
+applyPts();
+
+let edMap = null, edLayer = null, edSel = null, edMode = null;
+const ED_COL = { default: '#fcee0a', moved: '#00f0ff', added: '#ff2bd6', removed: '#6b7a99', fixed: '#39ff88' };
+const ED_LAB = { default: 'domyślny', moved: 'przesunięty', added: 'dodany przez ciebie', removed: 'USUNIĘTY (wyłączony z gry)', fixed: 'punkt stałej trasy' };
+function edItems() {
+  const out = [];
+  DEF_PTS.forEach(p => { const rem = pe.removed.includes(p.id), mv = pe.moved[p.id];
+    out.push({ k: 'p', id: p.id, s: p.s, lat: mv ? mv.lat : p.lat, lng: mv ? mv.lng : p.lng, st: rem ? 'removed' : mv ? 'moved' : 'default' }); });
+  pe.added.forEach(a => out.push({ k: 'p', id: a.id, s: a.s, lat: a.lat, lng: a.lng, st: 'added' }));
+  FIXED_ROUTES.forEach((r, ri) => r.pts.forEach((q, qi) => out.push({ k: 'f', id: ri + '-' + qi, s: q.n + ' · ' + q.s, lat: q.lat, lng: q.lng, st: pe.fmoved[ri + '-' + qi] ? 'moved' : 'fixed' })));
+  return out;
+}
+function edCommit() { savePe(); applyPts(); edRender(); }
+function edRender() {
+  if (!edMap) return;
+  edLayer.clearLayers();
+  const items = edItems();
+  items.forEach(it => {
+    const sel = edSel && edSel.k === it.k && edSel.id === it.id, col = ED_COL[it.st];
+    L.circleMarker([it.lat, it.lng], { radius: sel ? 14 : 9, color: sel ? '#ffffff' : col, weight: sel ? 3 : 2, fillColor: col, fillOpacity: it.st === 'removed' ? 0.2 : 0.8 })
+      .on('click', ev => { L.DomEvent.stopPropagation(ev); edSel = { k: it.k, id: it.id }; edMode = null; edRender(); }).addTo(edLayer);
+  });
+  $('#edCount').textContent = AREA.points.length;
+  const cur = edSel && items.find(i => i.k === edSel.k && i.id === edSel.id);
+  let info = cur ? '<b>' + cur.s + '</b> · ' + ED_LAB[cur.st]
+    : 'Dotknij punktu na mapie.<br><span style="color:var(--dim)">żółty = domyślny · cyjan = przesunięty · różowy = własny · zielony = stała trasa · szary = usunięty</span>';
+  if (edMode === 'move') info = '<b>PRZENOSZENIE:</b> dotknij mapy w nowym miejscu dla: ' + (cur ? cur.s : '');
+  if (edMode === 'add') info = '<b>DODAWANIE:</b> dotknij mapy tam, gdzie ma być nowy punkt.';
+  $('#edInfo').innerHTML = info;
+  const box = $('#edBtns'); box.innerHTML = '';
+  const add = (txt, fn, cls) => { const b = document.createElement('button'); b.className = 'btn small ' + (cls || ''); b.textContent = txt; b.onclick = fn; box.appendChild(b); };
+  if (cur && edMode == null) {
+    if (cur.st === 'removed') add('PRZYWRÓĆ PUNKT', () => { pe.removed = pe.removed.filter(x => x !== cur.id); edCommit(); });
+    else {
+      if (cur.k === 'p') add('USUŃ PUNKT', () => {
+        if (typeof cur.id === 'string') { pe.added = pe.added.filter(a => a.id !== cur.id); edSel = null; }
+        else if (!pe.removed.includes(cur.id)) pe.removed.push(cur.id);
+        edCommit();
+      }, 'pink');
+      add('PRZENIEŚ', () => { edMode = 'move'; edRender(); });
+    }
+  }
+  if (edMode) add('ANULUJ', () => { edMode = null; edRender(); });
+  else {
+    add('+ DODAJ PUNKT', () => { edMode = 'add'; edSel = null; edRender(); });
+    add('RESET DOMYŚLNE', () => { if (!confirm('Przywrócić wszystkie punkty do ustawień domyślnych? Twoje zmiany przepadną.')) return;
+      pe = { removed: [], moved: {}, added: [], fmoved: {} }; edSel = null; edMode = null; edCommit(); }, 'pink');
+  }
+}
+function edMapClick(ll) {
+  const pt = { lat: ll.lat, lng: ll.lng };
+  if (edMode === 'move' && edSel) {
+    if (edSel.k === 'f') pe.fmoved[edSel.id] = pt;
+    else if (typeof edSel.id === 'string') { const a = pe.added.find(x => x.id === edSel.id); if (a) { a.lat = pt.lat; a.lng = pt.lng; } }
+    else pe.moved[edSel.id] = pt;
+    edMode = null; sfx('ok'); edCommit();
+  } else if (edMode === 'add') {
+    const id = 'a' + Date.now();
+    pe.added.push({ id, s: 'Punkt własny', lat: pt.lat, lng: pt.lng });
+    edSel = { k: 'p', id }; edMode = null; sfx('ok'); edCommit();
+  } else if (edSel) { edSel = null; edRender(); }
+}
+function openEditor() {
+  show('editor');
+  if (!edMap) {
+    if (typeof L === 'undefined') { show('menu'); $('#menuHint').textContent = 'Mapa niedostępna — brak biblioteki Leaflet.'; return; }
+    edMap = L.map('edMap', { zoomControl: false }).setView([AREA.center.lat, AREA.center.lng], 15);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, className: 'dark-tiles', attribution: '© OpenStreetMap' }).addTo(edMap);
+    L.polygon(AREA.poly, { color: '#ff2bd6', weight: 2, dashArray: '10 6', fill: false, interactive: false }).addTo(edMap);
+    edLayer = L.layerGroup().addTo(edMap);
+    edMap.on('click', e => edMapClick(e.latlng));
+  }
+  edSel = null; edMode = null;
+  setTimeout(() => { edMap.invalidateSize(); edMap.fitBounds(L.polygon(AREA.poly).getBounds(), { padding: [20, 20] }); edRender(); }, 80);
+}
+function closeEditor() { edSel = null; edMode = null; renderMenu(); show('menu'); }
+
 /* ================= DROGI (OpenStreetMap / Overpass) ================= */
 let roadGrid = null;
 const CELL = 0.0009; // ~100 m
@@ -865,6 +974,7 @@ function updateHUD() {
   $('#hCred').textContent = M.done * REWARD_TARGET + M.relays * REWARD_RELAY + (M.extra || 0);
   $('#compInfo').textContent = heading == null ? 'KOMPAS: N ↑' : `HDG ${Math.round(heading)}°`;
   $('#dbg').hidden = !sim;
+  $('#btnBlocked').hidden = M.idx >= M.targets.length;
   const btn = $('#btnAct');
   if (!pos) {
     $('#gDist').textContent = '---'; $('#gSub').textContent = 'OCZEKIWANIE NA SYGNAŁ GPS…';
@@ -1137,6 +1247,26 @@ function onAct() {
     toast(`<b>${t.type === 'pickup' ? 'DANE POBRANE' : 'PAKIET DOSTARCZONY'}</b> (+${REWARD_TARGET} ₵). ${last ? 'Wracaj do BAZY!' : 'Następny cel: ' + (M.idx + 1)}`, 'good', 6000);
     saveMission(); renderMap(); updateHUD();
   });
+}
+function onBlocked() {
+  if (!M || mgActive || M.idx >= M.targets.length) return;
+  if (!confirm('Cel niedostępny? Zostanie zastąpiony innym punktem. Jeśli to punkt z listy, trafi na stałą czarną listę (przywrócisz go w EDYTORZE).')) return;
+  const t = M.targets[M.idx];
+  const hit = AREA.points.find(q => dist(q, t) < 3);
+  if (hit) {
+    if (typeof hit.id === 'string') pe.added = pe.added.filter(a => a.id !== hit.id);
+    else if (!pe.removed.includes(hit.id)) pe.removed.push(hit.id);
+    savePe(); applyPts();
+  }
+  let rep = null;
+  if (M.preset) {
+    rep = AREA.points.filter(q => !M.targets.some(o => dist(q, o) < 60) && dist(q, t) > 60 && dist(q, M.base) >= 150)
+      .sort((a, b) => dist(a, t) - dist(b, t))[0] || null;
+  }
+  if (!rep) { const p = offset(t, rand(120, 260), Math.random() * 360); rep = snap(p, 250) || p; }
+  M.targets[M.idx] = { lat: rep.lat, lng: rep.lng, name: t.name.split(' · ')[0] + (rep.s ? ' · ' + rep.s : ''), type: t.type, done: false };
+  saveMission(); renderMap(); updateHUD();
+  toast(hit ? '<b>CEL ZASTĄPIONY</b> — stary punkt usunięty na stałe.' : '<b>CEL ZASTĄPIONY</b> tylko w tej misji (to punkt stałej trasy — przesuń go w EDYTORZE).', 'warn', 7000);
 }
 function onRelay() {
   const e0 = M && M.event;
@@ -1678,6 +1808,9 @@ $('#mgExit').onclick = cancelMinigame;
 $('#btnAbort').onclick = () => { if (confirm('Przerwać misję? Dostaniesz tylko część nagrody za zaliczone cele.')) finish('abort'); };
 $('#btnCenter').onclick = () => { follow = true; if (pos && map) map.setView([pos.lat, pos.lng], Math.max(map.getZoom(), 17)); };
 $('#btnFit').onclick = () => { follow = false; fitAll(); };
+$('#btnEditor').onclick = openEditor;
+$('#edBack').onclick = closeEditor;
+$('#btnBlocked').onclick = onBlocked;
 $('#resOk').onclick = () => { $('#result').hidden = true; renderMenu(); show('menu'); };
 
 
@@ -1686,6 +1819,7 @@ $('#resOk').onclick = () => { $('#result').hidden = true; renderMenu(); show('me
   const app = plug('App'); if (!app) return;
   app.addListener('backButton', () => {
     if (!$('#mg').hidden) { cancelMinigame(); return; }
+    if ($('#editor').classList.contains('active')) { closeEditor(); return; }
     if (M) { toast('Misja trwa — użyj ✕ aby ją przerwać.', 'warn', 2500); return; }
     if ($('#shop').classList.contains('active')) { renderMenu(); show('menu'); return; }
     if (!$('#result').hidden) return;
