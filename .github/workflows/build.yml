@@ -79,7 +79,7 @@ jobs:
       - name: Install dependencies
         run: |
           npm init -y
-          npm install @capacitor/core @capacitor/app @capacitor/geolocation @capacitor-community/keep-awake leaflet @fontsource/orbitron @fontsource/share-tech-mono
+          npm install @capacitor/core @capacitor/android @capacitor/app @capacitor/geolocation @capacitor-community/keep-awake leaflet @fontsource/orbitron @fontsource/share-tech-mono
           npm install -D @capacitor/cli
 
       - name: Build web assets and Android project
