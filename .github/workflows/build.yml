@@ -69,7 +69,7 @@ jobs:
           const f = path.join(process.cwd(), 'android', 'app', 'src', 'main', 'AndroidManifest.xml');
           let x = fs.readFileSync(f, 'utf8');
           let add = '';
-          for (const p of ['ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION', 'VIBRATE', 'WAKE_LOCK', 'INTERNET'])
+          for (const p of ['ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION', 'VIBRATE', 'WAKE_LOCK', 'INTERNET', 'POST_NOTIFICATIONS'])
             if (!x.includes('android.permission.' + p + '"')) add += '    <uses-permission android:name="android.permission.' + p + '" />\n';
           if (add) x = x.replace('</manifest>', add + '</manifest>');
           if (!x.includes('android:screenOrientation')) x = x.replace('<activity', '<activity\n            android:screenOrientation="portrait"');
@@ -79,7 +79,7 @@ jobs:
       - name: Install dependencies
         run: |
           npm init -y
-          npm install @capacitor/core @capacitor/android @capacitor/app @capacitor/geolocation @capacitor-community/keep-awake leaflet @fontsource/orbitron @fontsource/share-tech-mono
+          npm install @capacitor/core @capacitor/android @capacitor/app @capacitor/geolocation @capacitor/local-notifications @capacitor-community/keep-awake leaflet @fontsource/orbitron @fontsource/share-tech-mono
           npm install -D @capacitor/cli
 
       - name: Build web assets and Android project
