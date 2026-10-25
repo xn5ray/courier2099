@@ -336,7 +336,19 @@ const fmt = s => { s = Math.max(0, Math.floor(s)); return String(Math.floor(s / 
 /* ================= NATIVE (Capacitor / Android) ================= */
 const CAP = window.Capacitor, NATIVE = !!(CAP && CAP.isNativePlatform && CAP.isNativePlatform());
 const plug = n => (NATIVE && CAP.Plugins && CAP.Plugins[n]) || null;
-const nGeo = () => plug('Geolocation'), nAwake = () => plug('KeepAwake');
+const nGeo = () => plug('Geolocation'), nAwake = () => plug('KeepAwake'), nNotif = () => plug('LocalNotifications');
+const EV_TITLE = { patrol: 'PATROL DRONÓW', quiet: 'CICHY KROK', jam: 'ZAGŁUSZACZ SYGNAŁU', drop: 'DEAD DROP', hold: 'PRZEJĘCIE SYGNAŁU', hacker: 'POTRZEBUJĄCY HAKER', glitch: 'AWARIA CYBERWARE', relay: 'SZYBKI PRZEKAZ' };
+const EV_BODY = { patrol: 'Strefa skanowana — obejdź ją lub odczekaj 2 min.', quiet: 'Strefa czujników drgań — idź wolno.', jam: 'Mapa wyłączona na 3 min. Użyj kompasu.', drop: 'Porzucona skrzynia w pobliżu — zniknie za 4 min.', hold: 'Wejdź w strefę i wytrwaj 3 min.', hacker: 'Ranny haker prosi o pomoc — otwórz grę.', glitch: 'Zakłócenia ekranu i błędny dystans.', relay: 'Masz 5 min na dotarcie do punktu bonusowego.' };
+let notifId = 1;
+async function initNotif() {
+  const n = nNotif(); if (!n) return;
+  try { const p = await n.checkPermissions(); if (p.display !== 'granted') await n.requestPermissions(); } catch (e) {}
+}
+function notifyEv(type) {
+  const n = nNotif();
+  if (!n || document.visibilityState === 'visible') return;   // w grze działają zwykłe powiadomienia na ekranie
+  try { n.schedule({ notifications: [{ id: (notifId++ % 100000) + 1, title: '⚠ ' + (EV_TITLE[type] || 'ZDARZENIE'), body: EV_BODY[type] || 'Nowe zdarzenie w misji.', schedule: { at: new Date(Date.now() + 150) } }] }); } catch (e) {}
+}
 let nWatch = null;
 
 /* ================= KONFIGURACJA ================= */
@@ -924,6 +936,7 @@ function spawnEvent(force) {
     sfx('alert'); haptic([120, 60, 120]);
   } else spawnNew(type, now, dg);
   if (M.event && ['drop', 'hold', 'relay'].includes(M.event.type) && eff('intel')) M.event.endsAt += 60000;
+  if (M.event) notifyEv(M.event.type);
   renderEvent(); saveMission(); updateHUD();
 }
 function spawnNew(type, now, dg) {
@@ -1011,7 +1024,7 @@ function tick() {
 
 /* ================= START / KONIEC ================= */
 async function startMission() {
-  initAudio(); requestCompass(); lockScreen();
+  initAudio(); requestCompass(); lockScreen(); initNotif();
   sim = save.sim;
   $('#menuHint').textContent = '';
   $('#loading').hidden = false; $('#loadMsg').textContent = 'SKANOWANIE SATELIT…';
