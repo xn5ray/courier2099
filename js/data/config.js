@@ -15,7 +15,8 @@ const MODS = {
   bench: { name: 'STÓŁ WARSZTATOWY',     ic: '⚙', w: 15, cost: [150, 15, 0], desc: '+7 m promienia zaliczania punktów GPS na moduł.' },
   node:  { name: 'SERWER DANYCH',        ic: '▤', w: 20, cost: [200, 20, 5], desc: '+30 ₵ na godzinę (do 12 h) i +25 ₵ za udaną misję.' },
   cache: { name: 'MAGAZYN PRZEMYTNICZY', ic: '▣', w: 20, cost: [250, 25, 10], desc: '35% szans na rzadki komponent po misji — ułatwia jedną minigrę hakerską.' },
-  intel: { name: 'TERMINAL WYWIADOWCZY', ic: '◉', w: 25, cost: [180, 15, 5], desc: 'Odsłania pobliskie punkty na mapie; Dead Dropy i przekazy trwają +60 s.' }
+  intel: { name: 'TERMINAL WYWIADOWCZY', ic: '◉', w: 25, cost: [180, 15, 5], desc: 'Odsłania pobliskie punkty na mapie; Dead Dropy i przekazy trwają +60 s.' },
+  charge: { name: 'STACJA ŁADOWANIA', ic: '🔋', w: 15, cost: [180, 15, 5], desc: '+5 min czasu misji na moduł (działają maks. 2 moduły = +10 min, jak dawna Bateria GPS).' }
 };
 /* TRYB NOCNY (#15): od godziny `from` do `to` (czas w telefonie) — bonus do ₵, ale częstsze zagrożenia. */
 const NIGHT = { from: 21, to: 4, bonus: 0.3 };
