@@ -28,7 +28,7 @@
         <div><span>ZŁOM ⚙</span><b id="stScrap">0</b></div><div><span>CHŁODZIWO ❄</span><b id="stCool">0</b></div><div><span>KOMPONENTY ◈</span><b id="stComp">0</b></div>
       </div>
       <button class="btn big" id="btnStart">▶ START MISJI</button>
-      <button class="btn big pink" id="btnQuick">▶ SZYBKA MISJA (1 CEL)</button>
+      <button class="btn big pink" id="btnQuick">▶ TABLICA ZLECEŃ (SZYBKIE MISJE)</button>
       <button class="btn pink" id="btnResume" hidden>⟲ WZNÓW MISJĘ</button>
       <button class="btn" id="btnShop">⛁ KRYJÓWKA · THE SAFEHOUSE</button>
       <button class="btn" id="btnEditor">✎ EDYTOR PUNKTÓW</button>
@@ -43,7 +43,7 @@
         <b>JAK GRAĆ:</b> Misja trwa 45 min (z Baterią GPS 55). Wyjdź na zewnątrz, naciśnij START. Gra wylosuje 3–4 cele w promieniu 0,5–2 km.
         Idź do celów <b>po kolei</b>. Gdy będziesz w zasięgu (domyślnie 20 m), odblokuje się przycisk akcji → minigra → cel zaliczony.
         Po ostatnim celu wróć do bazy (punkt startu). Losowe zdarzenia: patrol dronów (strefa kary) i szybki przekaz (bonus).<br><br>
-        <b>SZYBKA MISJA:</b> jeden cel 300–600 m od ciebie i 10–15 min (Node Burn: tylko 4 min!). Losowy wariant: <b>Ghost Drop</b> (ciche podejście + długie przytrzymanie skanera), <b>Node Burn</b> (dwie trudne minigry pod presją czasu), <b>Data Broker</b> (rozmowa z informatorem + przejęcie częstotliwości), <b>Power Surge</b> (skok napięcia: złom i kredyty). Bez powrotu do bazy i bez losowych zdarzeń.<br><br>
+        <b>SZYBKA MISJA:</b> na tablicy zleceń wybierasz jedno z 3 zleceń (albo je pomijasz — slot wraca po cooldownie, dostaniesz powiadomienie). Jeden cel 300–600 m od ciebie i 10–15 min (Node Burn: tylko 4 min!). Warianty: <b>Ghost Drop</b> (ciche podejście + długie przytrzymanie skanera), <b>Node Burn</b> (dwie trudne minigry pod presją czasu), <b>Data Broker</b> (rozmowa z informatorem + przejęcie częstotliwości), <b>Power Surge</b> (skok napięcia: złom i kredyty). Bez powrotu do bazy i bez losowych zdarzeń.<br><br>
         <b>KRYJÓWKA:</b> za ₵, złom i chłodziwo budujesz moduły na siatce 4×4. Pilnuj limitu mocy (W) — przy przeciążeniu bonusy wyłączają się, dopóki nie dostawisz Generatora.<br><br><b>TRYB SYMULACJI</b> pozwala przetestować grę przy biurku: dotknij mapy, aby się „teleportować”.
       </div>
     </div>
@@ -60,6 +60,17 @@
       <div class="sgrid" id="sGrid"></div>
       <div class="shop-item" id="shInfo"></div>
       <button class="btn" id="btnShopBack">◀ POWRÓT</button>
+    </div>
+  </section>
+
+  <!-- ================= BOARD (TABLICA ZLECEŃ) ================= -->
+  <section id="board" class="screen">
+    <div class="menu-in">
+      <div class="shop-head"><span class="pink">TABLICA ZLECEŃ</span></div>
+      <div class="sub" style="margin:4px 0 8px">// WYBIERZ ZLECENIE</div>
+      <div id="bdList"></div>
+      <div class="si-desc" id="bdNote"></div>
+      <button class="btn" id="btnBoardBack">◀ POWRÓT</button>
     </div>
   </section>
 
@@ -148,6 +159,7 @@
 <script src="js/quick-run.js"></script>
 <script src="js/events.js"></script>
 <script src="js/mission-flow.js"></script>
+<script src="js/board.js"></script>
 <script src="js/minigames/engine.js"></script>
 <script src="js/minigames/classic.js"></script>
 <script src="js/minigames/frequency.js"></script>

@@ -25,7 +25,7 @@ clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 
 .btn.small{padding:8px;font-size:11px;margin:6px 0}
 
 /* ---------- menu ---------- */
-#menu,#shop{background:
+#menu,#shop,#board{background:
 radial-gradient(circle at 50% -10%,rgba(255,43,214,.25),transparent 55%),
 linear-gradient(rgba(0,240,255,.05) 1px,transparent 1px) 0 0/100% 32px,
 linear-gradient(90deg,rgba(0,240,255,.05) 1px,transparent 1px) 0 0/32px 100%,var(--bg);overflow-y:auto}
@@ -210,3 +210,12 @@ background:repeating-radial-gradient(circle,rgba(0,240,255,.35) 0 2px,transparen
 #edInfo b{color:var(--cyan)}
 #edBtns{display:flex;flex-wrap:wrap;gap:6px}
 #edBtns .btn{flex:1 1 45%;width:auto;margin:0}
+
+/* TABLICA ZLECEŃ */
+.bd-card{border:1px solid var(--cyan);background:rgba(0,0,0,.5);padding:12px;margin:12px 0}
+.bd-card.cd{border-color:var(--dim);opacity:.8}
+.bd-card.run{border-color:var(--pink)}
+.bd-card .bd-meta{font-size:12px;color:var(--yellow);margin:6px 0}
+.bd-card .bd-cd{font:800 26px var(--disp);color:var(--pink);text-align:center;margin:8px 0}
+.bd-card .bd-row{display:flex;gap:8px}
+.bd-card .bd-row .btn{margin:6px 0}

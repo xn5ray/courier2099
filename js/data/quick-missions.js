@@ -20,6 +20,11 @@ const QUICK_BASE_REWARD = 120;     // ₵ za sam dowieziony cel
 const QUICK_TIME_BONUS_DIV = 8;    // premia za czas = pozostałe sekundy / tyle
 const QUICK_FAIL_PENALTY = 8;      // domyślna kara (s) za nieudaną minigrę
 
+/* TABLICA ZLECEŃ (3 szybkie misje do wyboru) */
+const QUICK_SLOTS = 3;             // ile zleceń naraz na tablicy
+const QUICK_SKIP_CD_MIN = 10;      // cooldown (min) slotu po POMINIĘCIU zlecenia (albo po porażce / przerwaniu)
+const QUICK_DONE_CD_MIN = 5;       // cooldown (min) slotu po UDANYM wykonaniu zlecenia
+
 const QUICK_MISSIONS = {
   ghost: {
     title: 'GHOST DROP', act: 'ZOSTAW PACZKĘ', dist: [300, 600], minutes: [10, 15], reward: 80, scrap: [2, 4],

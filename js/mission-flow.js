@@ -2,7 +2,7 @@
 /* PRZEBIEG MISJI: start, wznowienie, koniec (ekran wyniku/nagrody) i akcje gracza po dotarciu do celu. */
 
 /* ================= START / KONIEC ================= */
-async function startMission(quick) {
+async function startMission(quick, forcedV, slot) {
   initAudio(); requestCompass(); lockScreen(); initNotif();
   sim = save.sim;
   $('#menuHint').textContent = '';
@@ -16,7 +16,7 @@ async function startMission(quick) {
   if (sim && dist(start, FIXED_BASE) > FIXED_BASE_RADIUS) start = { lat: FIXED_BASE.lat, lng: FIXED_BASE.lng, acc: 5 };
   const bs = quick ? { lat: start.lat, lng: start.lng } : (dist(start, FIXED_BASE) <= FIXED_BASE_RADIUS ? { lat: FIXED_BASE.lat, lng: FIXED_BASE.lng } : start);   // baza misji
   let roadNodes = null, giveUp = false;
-  const qv = quick ? pickQuickVariant() : null;
+  const qv = quick ? ((forcedV && QUICK_MISSIONS[forcedV]) ? forcedV : pickQuickVariant()) : null;
   const presetOn = quick ? quickHasPts(bs, qv) : usePreset(bs);
   while (!presetOn && !roadNodes && !giveUp) {
     for (let tries = 0; tries < 2 && !roadNodes; tries++) {
@@ -34,6 +34,7 @@ async function startMission(quick) {
   $('#loading').hidden = true;
   if (typeof L === 'undefined') { $('#menuHint').textContent = 'Nie załadowano biblioteki mapy (Leaflet) — sprawdź internet.'; releaseLock(); return; }
   M = quick ? createQuick(bs, qv) : createMission(bs);
+  if (quick && slot != null) { M.quick.slot = slot; boardTake(slot, M.startedAt); }   // zlecenie z tablicy
   pos = null;
   beginUI(false);
   setPos(start.lat, start.lng, start.acc);
@@ -68,6 +69,7 @@ function finish(kind) {
   clearInterval(tickT); stopWatch(); releaseLock();
   if (mgCancel) mgCancel(); mgCancel = null; mgActive = false; $('#mg').hidden = true; $('#qdlg').hidden = true;
   try { localStorage.removeItem(MISSION_KEY); } catch (e) {}
+  if (m.quick && m.quick.slot != null) boardUsed(m.quick.slot, kind);   // slot tablicy → cooldown + powiadomienie
   const rem = Math.max(0, Math.ceil((m.endsAt - Date.now()) / 1000));
   const lines = []; let total = 0, title;
   const base = m.done * REWARD_TARGET;

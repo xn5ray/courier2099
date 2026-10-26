@@ -7,7 +7,7 @@ const MISSION_MIN = 45;
 const REWARD_TARGET = 100, REWARD_RELAY = 150, REWARD_COMPLETE = 200;
 const PATROL_PENALTY = 60, MG_PENALTY = 5, FIX_COST = 50;
 const DEF = { credits: 0, missions: 0, best: 0, sound: true, haptic: true, sim: false, up: { boots: 0, decrypt: 0, battery: 0 },
-  scrap: 0, cool: 0, comps: 0, nodeT: 0,
+  scrap: 0, cool: 0, comps: 0, nodeT: 0, qboard: null,
   safe: ['lock', null, null, 'lock', null, 'core', null, null, null, null, null, null, 'lock', null, null, 'lock'] };   // siatka 4x4: 'lock' | null (puste) | 'core' | id modułu
 /* Moduły Kryjówki. cost = [₵, złom, chłodziwo], w = pobór mocy (W), pw = produkcja mocy (W) */
 const MODS = {

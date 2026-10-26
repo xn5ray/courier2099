@@ -8,7 +8,8 @@ window.MINIGAMES = MG_ALL.slice();
 /* ================= PODPIĘCIE ZDARZEŃ ================= */
 document.addEventListener('click', e => { if (e.target.closest('.btn')) { initAudio(); sfx('click'); } });
 $('#btnStart').onclick = () => { if (loadMissionSaved() && !confirm('Masz niedokończoną misję. Rozpocząć nową (stara przepadnie)?')) return; startMission(); };
-$('#btnQuick').onclick = () => { if (loadMissionSaved() && !confirm('Masz niedokończoną misję. Rozpocząć nową (stara przepadnie)?')) return; startMission(true); };
+$('#btnQuick').onclick = openBoard;
+$('#btnBoardBack').onclick = () => { renderMenu(); show('menu'); };
 $('#btnResume').onclick = resumeMission;
 $('#btnResetCred').onclick = () => { if (!confirm('Zresetować kasę do 0 ₵? Ulepszenia zostają.')) return; save.credits = 0; persist(); renderMenu(); sfx('bad'); haptic(60); };
 $('#btnShop').onclick = () => { selT = null; renderSafe(); show('shop'); };
@@ -43,6 +44,7 @@ $('#resOk').onclick = () => { $('#result').hidden = true; renderMenu(); show('me
     if (!$('#qdlg').hidden) return;
     if ($('#editor').classList.contains('active')) { closeEditor(); return; }
     if (M) { toast('Misja trwa — użyj ✕ aby ją przerwać.', 'warn', 2500); return; }
+    if ($('#board').classList.contains('active')) { renderMenu(); show('menu'); return; }
     if ($('#shop').classList.contains('active')) { renderMenu(); show('menu'); return; }
     if (!$('#result').hidden) return;
     app.exitApp();
