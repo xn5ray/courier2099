@@ -1014,18 +1014,22 @@ function updateHUD() {
   $('#evTxt').textContent = txt;
   br.hidden = !b; if (b) { br.textContent = b[0]; br.disabled = !b[1] || mgActive; }
 }
-let lastWp = null, lastWpT = 0, spd = 0;   // spd = prędkość (m/s)
+let lastWp = null, lastWpT = 0, spd = 0, mvAnchor = null;   // spd = prędkość (m/s)
 function onPosChanged() {
   if (!M) return;
   const now = Date.now();
   if (lastWp) { const dt = (now - lastWpT) / 1000;
-    if (dt > 0.3) { const d = dist(lastWp, pos); spd = spd * 0.5 + (d / dt) * 0.5; if (d >= 1.5) M.walkMs = (M.walkMs || 0) + Math.min(dt, 5) * 1000; lastWp = pos; lastWpT = now; } }
+    if (dt > 0.3) { const d = dist(lastWp, pos); spd = spd * 0.5 + (d / dt) * 0.5; lastWp = pos; lastWpT = now; } }
   else { lastWp = pos; lastWpT = now; }
+  // czas marszu: liczony od punktu-kotwicy, niezależnie od częstotliwości odczytów GPS
+  if (!mvAnchor) { mvAnchor = { lat: pos.lat, lng: pos.lng, t: now }; }
+  else if (dist(mvAnchor, pos) >= 8) { M.walkMs = (M.walkMs || 0) + Math.min(now - mvAnchor.t, 90000); mvAnchor = { lat: pos.lat, lng: pos.lng, t: now }; }
+  else if (now - mvAnchor.t > 90000) { mvAnchor = { lat: pos.lat, lng: pos.lng, t: now }; }   // stoisz — nie licz
   updatePlayerMarker(); checkPatrol(); updateHUD();
 }
 
 /* ================= WYDARZENIA ================= */
-function setNextEvent() { M.nextWalk = (M.walkMs || 0) + rand(420000, 720000); }   // 7-12 min MARSZU
+function setNextEvent() { M.nextWalk = (M.walkMs || 0) + rand(420000, 720000); M.evClock = Date.now(); }   // 7-12 min MARSZU
 function spawnEvent(force) {
   if (!pos || M.event) return;
   const g = goal(), dg = dist(pos, g), now = Date.now();
@@ -1123,10 +1127,11 @@ function tick() {
   if (rem <= 0) { finish('timeout'); return; }
   if (now - lastWpT > 4000) spd = 0;
   if (M.nextWalk == null) setNextEvent();
+  if (M.evClock == null) M.evClock = now;
   if (M.event) {
     evTick();
     if (M.event && now >= M.event.endsAt) { const x = EV_END[M.event.type] || []; endEvent(x[0], x[1]); }
-  } else if ((M.walkMs || 0) >= M.nextWalk && !mgActive && pos) spawnEvent();
+  } else if (((M.walkMs || 0) >= M.nextWalk || now - M.evClock > 13 * 60000) && !mgActive && pos) spawnEvent();   // awaryjnie: min. co 13 min
   if (!sim && pos && now - lastFix > 25000) $('#gpsInfo').textContent = 'GPS: SYGNAŁ UTRACONY';
   if (now - lastSave > 5000) saveMission();
   updateHUD();
