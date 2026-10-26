@@ -91,6 +91,12 @@ jobs:
           npx cap sync android
           node scripts/patch-android.js
 
+      - name: Set app version (versionCode must grow with every build, or phones refuse the update)
+        run: |
+          N=${{ github.run_number }}
+          sed -E -i "s/versionCode[ =]+[0-9]+/versionCode $N/; s/versionName[ =]+\"[^\"]*\"/versionName \"1.0.$N\"/" android/app/build.gradle
+          grep -nE "applicationId|versionCode|versionName" android/app/build.gradle
+
       - name: Use fixed signing key (so updates install over old versions)
         run: |
           mkdir -p ~/.android
@@ -101,6 +107,11 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
+
+      - name: Print APK signature (must be identical in every build)
+        run: |
+          APKSIGNER=$(ls $ANDROID_HOME/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1) || true
+          if [ -n "$APKSIGNER" ]; then "$APKSIGNER" verify --print-certs android/app/build/outputs/apk/debug/app-debug.apk | grep -E "Signer|SHA-256" || true; fi
 
       - name: Publish APK as a release
         env:
