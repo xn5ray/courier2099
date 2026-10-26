@@ -2,7 +2,7 @@
 /* KRYJÓWKA: menu główne (statystyki) i ekran Kryjówki — budowanie modułów jest generyczne, czyta budynki z MODS (data/config.js). */
 
 function renderMenu() {
-  collectNodes();
+  collectNodes(); $('#nightTag').hidden = !isNight();
   $('#stCredits').textContent = save.credits;
   $('#stScrap').textContent = save.scrap; $('#stCool').textContent = save.cool; $('#stComp').textContent = save.comps;
   $('#stMissions').textContent = save.missions;
@@ -22,7 +22,7 @@ const canPay = c => save.credits >= c[0] && save.scrap >= c[1] && save.cool >= c
 const payC = c => { save.credits -= c[0]; save.scrap -= c[1]; save.cool -= c[2]; };
 const costTxt = c => c[0] + ' ₵' + (c[1] ? ' · ' + c[1] + ' ZŁOM' : '') + (c[2] ? ' · ' + c[2] + ' CHŁ' : '');
 function renderSafe() {
-  collectNodes();
+  collectNodes(); renderImplants();
   $('#shopCred').textContent = save.credits; $('#shScrap').textContent = save.scrap; $('#shCool').textContent = save.cool; $('#shComp').textContent = save.comps;
   const g = grid();
   $('#shPwr').innerHTML = g.use + ' / ' + g.cap + ' W' + (g.ok ? '' : ' <b class="red">— PRZECIĄŻENIE: BONUSY WYŁĄCZONE (dostaw Generator)</b>');
@@ -52,5 +52,21 @@ function renderSafe() {
   } else {
     const m = MODS[t]; add('<div class="si-name">' + m.ic + ' ' + m.name + '</div>' + m.desc + '<br>' + (m.pw ? 'Produkcja: +' + m.pw : 'Pobór: ' + m.w) + ' W');
     btn('DEMONTUJ (zwrot ' + Math.floor(m.cost[0] / 2) + ' ₵ · ' + Math.floor(m.cost[1] / 2) + ' ZŁOM)', true, () => { save.credits += Math.floor(m.cost[0] / 2); save.scrap += Math.floor(m.cost[1] / 2); save.safe[selT] = null; });
+  }
+}
+
+/* WSZCZEPY: drzewko ulepszeń (dane w IMPLANTS, config.js). Zakup = jednorazowo, na stałe. */
+function renderImplants() {
+  const box = $('#shImp'); box.innerHTML = '<div class="si-name">WSZCZEPY · DRZEWKO ULEPSZEŃ</div>';
+  for (const k in IMPLANTS) {
+    const m = IMPLANTS[k], has = !!save.imp[k], locked = !!m.req && !save.imp[m.req];
+    const d = document.createElement('div'); d.className = 'si-desc';
+    d.innerHTML = '<b>' + m.ic + ' ' + m.name + '</b>' + (m.req ? ' <span style="color:var(--dim)">↳ po: ' + IMPLANTS[m.req].name.split(' ')[0] + '</span>' : '') + '<br>' + m.desc;
+    box.appendChild(d);
+    const b = document.createElement('button'); b.className = 'btn small';
+    b.textContent = has ? 'ZAINSTALOWANY ✔' : locked ? 'WYMAGA: ' + IMPLANTS[m.req].name : 'WSZCZEP — ' + costTxt(m.cost);
+    b.disabled = has || locked || !canPay(m.cost);
+    b.onclick = () => { payC(m.cost); save.imp[k] = true; persist(); sfx('buy'); haptic(40); renderSafe(); renderMenu(); };
+    box.appendChild(b);
   }
 }

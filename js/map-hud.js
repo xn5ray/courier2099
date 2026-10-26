@@ -32,9 +32,9 @@ function renderEvent() {
   if (!map) return;
   evg.clearLayers();
   const ev = M && M.event; if (!ev || ev.lat == null) return;
-  const col = { patrol: '#ff3860', quiet: '#ff9500', hold: '#00f0ff' }[ev.type] || '#ff2bd6';
+  const col = { patrol: '#ff3860', quiet: '#ff9500', hold: '#00f0ff', rogue: '#ff3860' }[ev.type] || '#ff2bd6';
   L.circle([ev.lat, ev.lng], { radius: ev.r || (ev.type === 'hold' ? 30 : radius()), color: col, weight: ev.r ? 2 : 1, dashArray: '6 6', fillColor: col, fillOpacity: ev.r ? 0.2 : 0.12, interactive: false }).addTo(evg);
-  const cls = { patrol: 'drone', quiet: 'drone', hold: 'hold' }[ev.type] || 'bonus', ic = { patrol: '☢', quiet: '≋', hold: '⇩', drop: '▣' }[ev.type] || '₵';
+  const cls = { patrol: 'drone', quiet: 'drone', hold: 'hold', rogue: 'rogue' }[ev.type] || 'bonus', ic = { patrol: '☢', quiet: '≋', hold: '⇩', drop: '▣', rogue: '✦' }[ev.type] || '₵';
   L.marker([ev.lat, ev.lng], { icon: mk(cls, ic), interactive: false }).addTo(evg);
 }
 function updateRoute() {
@@ -77,7 +77,7 @@ function updateHUD() {
   const g = goal(), r = radius();
   $('#gName').textContent = (M.idx < M.targets.length ? `CEL ${M.idx + 1}: ` : '') + g.name;
   $('#hStep').textContent = M.idx < M.targets.length ? `${M.idx + 1}/${M.targets.length}` : 'BAZA';
-  $('#hCred').textContent = M.done * REWARD_TARGET + M.relays * REWARD_RELAY + (M.extra || 0);
+  $('#hCred').textContent = Math.round((M.done * REWARD_TARGET + M.relays * REWARD_RELAY + (M.extra || 0)) * (M.night ? 1 + NIGHT.bonus : 1));
   $('#compInfo').textContent = heading == null ? 'KOMPAS: N ↑' : `HDG ${Math.round(heading)}°`;
   $('#dbg').hidden = !sim;
   $('#btnBlocked').hidden = M.idx >= M.targets.length;
@@ -107,14 +107,15 @@ function updateHUD() {
   $$('.hud').forEach(h => h.classList.toggle('glitch', t === 'glitch'));
   if (!ev || t === 'hacker') { row.hidden = true; return; }
   row.hidden = false;
-  row.className = 'ev' + (['patrol', 'quiet', 'glitch', 'jam'].includes(t) ? ' patrol' : '');
+  row.className = 'ev' + (['patrol', 'quiet', 'glitch', 'jam', 'rogue'].includes(t) ? ' patrol' : '');
   const left = fmt(Math.max(0, Math.ceil((ev.endsAt - Date.now()) / 1000))), br = $('#btnRelay'), d2 = ev.lat != null ? Math.round(dist(pos, ev)) : 0;
   let txt = '', b = null;
-  if (t === 'patrol') { txt = `⚠ PATROL DRONÓW · ${ev.hit ? 'WYKRYTO!' : 'strefa za ' + Math.max(0, d2 - ev.r) + ' m'} · ${left}`; b = ['HAKUJ DRONA (stój, 20 s)', d2 <= ev.r + 40 && spd < 0.8]; }
+  if (t === 'patrol') { txt = `⚠ PATROL DRONÓW · ${ev.hit ? (ev.camo ? 'KAMUFLAŻ ✔' : 'WYKRYTO!') : 'strefa za ' + Math.max(0, d2 - ev.r) + ' m'} · ${left}`; b = ['HAKUJ DRONA (stój, 20 s)', d2 <= ev.r + 40 && spd < 0.8]; }
   else if (t === 'quiet') txt = `≋ CZUJNIKI DRGAŃ · ${d2 <= ev.r ? 'DETEKCJA ' + Math.round(ev.det) + '% — IDŹ WOLNO!' : 'strefa za ' + (d2 - ev.r) + ' m'} · ${left}`;
   else if (t === 'jam') txt = `📡 ZAGŁUSZACZ · tylko kompas i dystans · ${left}`;
   else if (t === 'drop') { txt = `▣ DEAD DROP · ${d2} m · ${left}`; b = ['OTWÓRZ SKRZYNIĘ', d2 <= r]; }
   else if (t === 'hold') txt = `⇩ PRZEJĘCIE SYGNAŁU · ${d2 <= 30 ? 'trzymaj pozycję ' + fmt(180 - ev.held) : 'wejdź w 30 m (' + d2 + ' m)'} · ${left}`;
+  else if (t === 'rogue') { txt = `✦ ROGUE GLITCH ucieka · ${d2} m · ${left}`; b = [d2 <= r ? 'ZŁAP GLITCHA' : 'ZA DALEKO — BIEGNIJ!', d2 <= r]; }
   else if (t === 'glitch') { txt = `⚠ AWARIA CYBERWARE · ${left}`; b = [`NAPRAW (${FIX_COST} ₵)`, save.credits >= FIX_COST]; }
   else { txt = `⚡ SZYBKI PRZEKAZ · ${d2} m · ${left}`; b = [d2 <= r ? 'PRZECHWYĆ' : 'ZA DALEKO', d2 <= r]; }
   $('#evTxt').textContent = txt;

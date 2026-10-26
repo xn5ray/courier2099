@@ -37,7 +37,7 @@ function startMinigame(gameType, onSuccess, onFailure, opts) {
     }, ok ? 450 : 1100);
   };
   const ctx = {
-    lvl: opts.hard ? 0 : Math.min(3, save.up.decrypt + (opts.boost ? 1 : 0)), alive,
+    lvl: opts.hard ? 0 : Math.min(3, save.up.decrypt + (opts.boost || 0)), alive,
     done: () => end(true),
     fail: msg => end(false, 'fail', msg),
     timeout: () => end(false, 'timeout', 'CZAS MINĄŁ'),
@@ -62,7 +62,12 @@ function mgBad() { sfx('bad'); haptic([60, 30, 60]); const p = $('#mg .panel'); 
 function runMinigame(title, onSuccess) {
   let left = M && M.hard ? 2 : 1;
   const next = () => {
-    const boost = save.comps > 0 && (save.comps--, persist(), toast('<b>KOMPONENT ZUŻYTY</b> — minigra łatwiejsza.', 'good', 2500), true);
+    let boost = 0;
+    if (save.comps > 0) { save.comps--; persist(); boost += 1; toast('<b>KOMPONENT ZUŻYTY</b> — minigra łatwiejsza.', 'good', 2500); }
+    if (save.imp.oc && M) {   // Neuralny Procesor Nadtaktowania: czas z zegara -> łatwiejsza minigra
+      const rem = Math.ceil((M.endsAt - Date.now()) / 1000);
+      if (rem > 300) { const c = Math.max(20, Math.min(120, Math.round(rem * 0.08))); M.endsAt -= c * 1000; boost += 2; toast('<b>NADTAKTOWANIE:</b> −' + c + ' s z zegara · minigra znacznie łatwiejsza i dłuższa.', 'warn', 3500); tick(); }
+    }
     startMinigame('random',
       () => { if (--left > 0) next(); else onSuccess(); },
       reason => {

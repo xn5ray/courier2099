@@ -21,7 +21,7 @@ $('#btnAct').onclick = onAct;
 $('#btnRelay').onclick = onRelay;
 $$('#choice [data-c]').forEach(b => b.onclick = () => resolveChoice(b.dataset.c));
 let dbgI = 0;
-$('#dbgNext').onclick = () => { if (M && sim) { M.event = null; spawnEvent(['quiet', 'patrol', 'jam', 'drop', 'hold', 'hacker', 'glitch'][dbgI++ % 7]); } };
+$('#dbgNext').onclick = () => { if (M && sim) { M.event = null; spawnEvent(['quiet', 'patrol', 'jam', 'drop', 'hold', 'hacker', 'glitch', 'rogue'][dbgI++ % 8]); } };
 $('#dbgPatrol').onclick = () => { if (M && sim) spawnEvent('patrol'); };
 $('#dbgRelay').onclick = () => { if (M && sim) spawnEvent('relay'); };
 let dbgG = 0;

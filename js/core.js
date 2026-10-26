@@ -11,8 +11,8 @@ const fmt = s => { s = Math.max(0, Math.floor(s)); return String(Math.floor(s / 
 const CAP = window.Capacitor, NATIVE = !!(CAP && CAP.isNativePlatform && CAP.isNativePlatform());
 const plug = n => (NATIVE && CAP.Plugins && CAP.Plugins[n]) || null;
 const nGeo = () => plug('Geolocation'), nAwake = () => plug('KeepAwake'), nNotif = () => plug('LocalNotifications');
-const EV_TITLE = { patrol: 'PATROL DRONÓW', quiet: 'CICHY KROK', jam: 'ZAGŁUSZACZ SYGNAŁU', drop: 'DEAD DROP', hold: 'PRZEJĘCIE SYGNAŁU', hacker: 'POTRZEBUJĄCY HAKER', glitch: 'AWARIA CYBERWARE', relay: 'SZYBKI PRZEKAZ' };
-const EV_BODY = { patrol: 'Strefa skanowana — obejdź ją lub odczekaj 2 min.', quiet: 'Strefa czujników drgań — idź wolno.', jam: 'Mapa wyłączona na 3 min. Użyj kompasu.', drop: 'Porzucona skrzynia w pobliżu — zniknie za 4 min.', hold: 'Wejdź w strefę i wytrwaj 3 min.', hacker: 'Ranny haker prosi o pomoc — otwórz grę.', glitch: 'Zakłócenia ekranu i błędny dystans.', relay: 'Masz 5 min na dotarcie do punktu bonusowego.' };
+const EV_TITLE = { patrol: 'PATROL DRONÓW', quiet: 'CICHY KROK', jam: 'ZAGŁUSZACZ SYGNAŁU', drop: 'DEAD DROP', hold: 'PRZEJĘCIE SYGNAŁU', hacker: 'POTRZEBUJĄCY HAKER', glitch: 'AWARIA CYBERWARE', relay: 'SZYBKI PRZEKAZ', rogue: 'ROGUE DATA GLITCH' };
+const EV_BODY = { patrol: 'Strefa skanowana — obejdź ją lub odczekaj 2 min.', quiet: 'Strefa czujników drgań — idź wolno.', jam: 'Mapa wyłączona na 3 min. Użyj kompasu.', drop: 'Porzucona skrzynia w pobliżu — zniknie za 4 min.', hold: 'Wejdź w strefę i wytrwaj 3 min.', hacker: 'Ranny haker prosi o pomoc — otwórz grę.', glitch: 'Zakłócenia ekranu i błędny dystans.', relay: 'Masz 5 min na dotarcie do punktu bonusowego.', rogue: 'Uciekający glitch w pobliżu — złap go, zanim zniknie!' };
 let notifId = 1;
 async function initNotif() {
   const n = nNotif(); if (!n) return;
@@ -42,6 +42,7 @@ function grid() { let use = 0; for (const k in MODS) use += cnt(k) * MODS[k].w; 
 const eff = k => grid().ok ? cnt(k) : 0;   // bonus modułu działa tylko gdy jest prąd
 const radius = () => Math.min(60, [20, 30, 40][save.up.boots] + eff('bench') * 7);
 const missionMinutes = () => MISSION_MIN + (save.up.battery ? 10 : 0);
+const isNight = () => { const h = new Date().getHours(); return h >= NIGHT.from || h < NIGHT.to; };
 
 /* ================= STAN ================= */
 let M = null, pos = null, watchId = null, heading = null, sim = false;

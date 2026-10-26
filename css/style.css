@@ -219,3 +219,10 @@ background:repeating-radial-gradient(circle,rgba(0,240,255,.35) 0 2px,transparen
 .bd-card .bd-cd{font:800 26px var(--disp);color:var(--pink);text-align:center;margin:8px 0}
 .bd-card .bd-row{display:flex;gap:8px}
 .bd-card .bd-row .btn{margin:6px 0}
+
+/* ---------- rogue glitch (#17) i tryb nocny (#15) ---------- */
+.mk.rogue{border-color:var(--red);color:var(--red);box-shadow:0 0 16px var(--red);animation:rblink .5s infinite}
+@keyframes rblink{50%{opacity:.2}}
+@keyframes nightpulse{50%{box-shadow:0 0 22px var(--pink),inset 0 0 10px rgba(255,43,214,.35)}}
+body.night .cell,body.night .panel-b{animation:nightpulse 1.6s infinite}
+body.night::after{background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 2px,rgba(255,43,214,.07) 2px 3px)}

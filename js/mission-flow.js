@@ -34,6 +34,8 @@ async function startMission(quick, forcedV, slot) {
   $('#loading').hidden = true;
   if (typeof L === 'undefined') { $('#menuHint').textContent = 'Nie załadowano biblioteki mapy (Leaflet) — sprawdź internet.'; releaseLock(); return; }
   M = quick ? createQuick(bs, qv) : createMission(bs);
+  M.night = isNight();
+  if (M.night) setTimeout(() => toast('<b>🌙 TRYB NOCNY:</b> +' + Math.round(NIGHT.bonus * 100) + '% ₵, ale więcej patroli i zagrożeń!', 'ev', 8000), 1500);
   if (quick && slot != null) { M.quick.slot = slot; boardTake(slot, M.startedAt); }   // zlecenie z tablicy
   pos = null;
   beginUI(false);
@@ -56,6 +58,7 @@ function resumeMission() {
 }
 function beginUI(resume) {
   show('game'); initMap();
+  document.body.classList.toggle('night', !!(M && M.night));
   setTimeout(() => { if (map) { map.invalidateSize(); renderMap(); renderEvent(); fitAll(); if (pos) updatePlayerMarker(); } }, 80);
   follow = false;
   setTimeout(() => { if (M && map) { follow = true; if (pos) map.setView([pos.lat, pos.lng], 17); } }, 5000);
@@ -67,6 +70,7 @@ function finish(kind) {
   if (!M) return;
   const m = M; M = null;
   clearInterval(tickT); stopWatch(); releaseLock();
+  document.body.classList.remove('night');
   if (mgCancel) mgCancel(); mgCancel = null; mgActive = false; $('#mg').hidden = true; $('#qdlg').hidden = true;
   try { localStorage.removeItem(MISSION_KEY); } catch (e) {}
   if (m.quick && m.quick.slot != null) boardUsed(m.quick.slot, kind);   // slot tablicy → cooldown + powiadomienie
@@ -108,6 +112,8 @@ function finish(kind) {
   }
   if (sc) { save.scrap += sc; lines.push(['Złom technologiczny', '+' + sc + ' ⚙']); }
   if (co) { save.cool += co; lines.push(['Chłodziwo', '+' + co + ' ❄']); }
+  if (m.rogue) { save.comps += m.rogue; lines.push(['Rogue Data Glitch: rzadki komponent', '+' + m.rogue + ' ◈']); }
+  if (m.night && total > 0) { const nb = Math.round(total * NIGHT.bonus); lines.push(['🌙 Tryb nocny (+' + Math.round(NIGHT.bonus * 100) + '% ₵)', nb]); total += nb; }
   if (m.penalties) lines.push([`Kary czasowe (info)`, '−' + m.penalties + ' s']);
   save.credits += total; if (kind === 'success') save.missions++; save.best = Math.max(save.best, total); persist();
   $('#resTitle').textContent = title;
@@ -159,6 +165,7 @@ function onRelay() {
   if (e0 && pos && !mgActive) {
     if (e0.type === 'glitch') { if (save.credits >= FIX_COST) { save.credits -= FIX_COST; persist(); endEvent('<b>CYBERWARE NAPRAWIONY</b> −' + FIX_COST + ' ₵', 'good'); } return; }
     if (e0.type === 'patrol') { hackDrone(e0); return; }
+    if (e0.type === 'rogue' && dist(pos, e0) <= radius()) { M.rogue = (M.rogue || 0) + 1; M.scrap = (M.scrap || 0) + 2; sfx('ok'); haptic([60, 40, 60, 40, 200]); endEvent('<b>GLITCH ZŁAPANY!</b> Rzadki komponent ◈ trafi do bazy po misji (+2 ZŁOM).', 'good'); return; }
     if (e0.type === 'drop' && dist(pos, e0) <= radius()) { const v = Math.round(rand(60, 140)); M.extra += v; const sc = Math.round(rand(2, 5)), co = Math.random() < 0.5 ? Math.round(rand(1, 2)) : 0; M.scrap = (M.scrap || 0) + sc; M.cool = (M.cool || 0) + co; sfx('ok'); haptic([60, 40, 60, 40, 120]); endEvent(`<b>SKRZYNIA OTWARTA!</b> +${v} ₵ · +${sc} ZŁOM` + (co ? ` · +${co} CHŁODZIWA` : ''), 'good'); return; }
   }
   if (!M || !pos || mgActive || !M.event || M.event.type !== 'relay') return;

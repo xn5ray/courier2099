@@ -2,11 +2,12 @@
 /* WYDARZENIA i PĘTLA: losowe zdarzenia w trakcie misji (patrol, dead drop, ...) oraz tick() co sekundę. */
 
 /* ================= WYDARZENIA ================= */
-function setNextEvent() { M.nextWalk = (M.walkMs || 0) + rand(420000, 720000); M.evClock = Date.now(); }   // 7-12 min MARSZU
+function setNextEvent() { M.nextWalk = (M.walkMs || 0) + rand(420000, 720000) * (M.night ? 0.6 : 1); M.evClock = Date.now(); }   // 7-12 min MARSZU
 function spawnEvent(force) {
   if (!pos || M.event) return;
   const g = goal(), dg = dist(pos, g), now = Date.now();
-  const pool = ['quiet', 'patrol', 'jam', 'drop', 'hold', 'hacker', 'glitch'];
+  const pool = ['quiet', 'patrol', 'jam', 'drop', 'hold', 'hacker', 'glitch', 'rogue'];
+  if (M.night) pool.push('patrol', 'patrol', 'quiet', 'glitch');   // noc = więcej zagrożeń
   let type = force || pool[Math.floor(Math.random() * pool.length)];
   if (!force && (type === 'patrol' || type === 'quiet') && dg < 350) type = 'jam';
   if (type === 'patrol') {
@@ -35,11 +36,12 @@ function spawnNew(type, now, dg) {
   else if (type === 'jam') { ev.endsAt = now + 180000; kind = 'bad'; msg = '<b>ZAGŁUSZACZ SYGNAŁU:</b> mapa i trasa wyłączone na 3 min. Kieruj się kompasem i dystansem!'; }
   else if (type === 'drop') { const p = spot(120, 180); Object.assign(ev, { lat: p.lat, lng: p.lng, endsAt: now + 240000 }); msg = '<b>DEAD DROP:</b> porzucona skrzynia ~150 m stąd, znika za 4 min. Zbaczasz z trasy po kredyty?'; }
   else if (type === 'hold') { const p = spot(150, 250); Object.assign(ev, { lat: p.lat, lng: p.lng, held: 0, endsAt: now + 480000 }); msg = '<b>PRZEJĘCIE SYGNAŁU:</b> wejdź w promień 30 m i wytrwaj tam 3 min (wyjście zeruje postęp).'; }
+  else if (type === 'rogue') { const p = spot(100, 200); Object.assign(ev, { lat: p.lat, lng: p.lng, endsAt: now + 180000, h: Math.random() * 360 }); msg = '<b>ROGUE DATA GLITCH:</b> czerwony punkt ucieka po okolicy! Dogoń go w 3 minuty (podbiegnij) — to rzadki komponent do bazy.'; }
   else if (type === 'glitch') { ev.cur = 0; kind = 'bad'; msg = `<b>AWARIA CYBERWARE:</b> zakłócenia ekranu i błędny dystans (±50 m) przez 5 min. Napraw za ${FIX_COST} ₵ albo przeczekaj.`; }
   else { ev.endsAt = now + 600000; $('#choice').hidden = false; }   // hacker
   M.event = ev; if (msg) toast(msg, kind, 9000); sfx('alert'); haptic([120, 60, 120]);
 }
-const EV_END = { patrol: ['Patrol dronów odleciał. Strefa wolna.', 'good'], jam: ['Zagłuszacz wyłączony — mapa wraca.', 'good'], quiet: ['Czujniki drgań wyłączone.', 'good'], glitch: ['Cyberware sam się zrestartował.', 'good'], hold: ['Przejęcie sygnału nieudane — okno zamknięte.', 'warn'], drop: ['Skrzynia zniknęła…', 'warn'], relay: ['Szybki przekaz wygasł…', 'warn'] };
+const EV_END = { patrol: ['Patrol dronów odleciał. Strefa wolna.', 'good'], jam: ['Zagłuszacz wyłączony — mapa wraca.', 'good'], quiet: ['Czujniki drgań wyłączone.', 'good'], glitch: ['Cyberware sam się zrestartował.', 'good'], hold: ['Przejęcie sygnału nieudane — okno zamknięte.', 'warn'], drop: ['Skrzynia zniknęła…', 'warn'], relay: ['Szybki przekaz wygasł…', 'warn'], rogue: ['Glitch uciekł w sieć…', 'warn'] };
 function evTick() {
   const ev = M.event; if (!ev) return;
   if (ev.type === 'hacker') { $('#choice').hidden = false; return; }
@@ -52,6 +54,10 @@ function evTick() {
       else { if (ev.det > 0) haptic(0); ev.det = Math.max(0, ev.det - 18); }
       if (ev.det >= 100) { penalty(45); sfx('bad'); haptic([400, 100, 400]); endEvent('<b>WYKRYTO RUCH!</b> Czujniki cię namierzyły. −45 s', 'bad'); }
     } else if (ev.entered) { haptic(0); M.extra += 40; endEvent('<b>CICHY KROK ZALICZONY</b> +40 ₵', 'good'); }
+  } else if (ev.type === 'rogue') {   // glitch dryfuje; gdy podejdziesz < 80 m — ucieka szybciej niż idziesz (trzeba przyspieszyć)
+    const away = d < 80;
+    ev.h = away ? bearing(pos, ev) + rand(-35, 35) : (ev.h == null ? Math.random() * 360 : ev.h) + rand(-25, 25);
+    const p = offset(ev, away ? 1.5 : 0.8, ev.h); ev.lat = p.lat; ev.lng = p.lng; renderEvent();
   } else if (ev.type === 'hold') {
     ev.held = d <= 30 ? ev.held + 1 : 0;
     if (ev.held >= 180) { M.extra += 150; M.scrap = (M.scrap || 0) + 3; M.cool = (M.cool || 0) + 1; sfx('ok'); haptic([60, 40, 60, 40, 120]); endEvent('<b>SYGNAŁ PRZEJĘTY!</b> Bonusowe dane +150 ₵, +3 ZŁOM, +1 CHŁODZIWA', 'good'); }
@@ -78,6 +84,7 @@ function checkPatrol() {
   const ev = M && M.event;
   if (!ev || ev.type !== 'patrol' || ev.hit || !pos) return;
   if (dist(pos, ev) <= ev.r) {
+    if (save.imp.optic && !M.camoUsed) { M.camoUsed = true; ev.hit = true; ev.camo = true; toast('<b>KAMUFLAŻ OPTYCZNY:</b> dron cię nie zauważył — bez kary! (raz na misję)', 'good', 6000); sfx('ok'); haptic([60, 40, 60]); saveMission(); return; }
     ev.hit = true; penalty(PATROL_PENALTY);
     toast(`<b>WYKRYTO PRZEZ DRONY!</b> −${PATROL_PENALTY} s`, 'bad', 6000);
     sfx('bad'); haptic([400, 100, 400]); saveMission();
@@ -106,6 +113,10 @@ function tick() {
     if (M.event && now >= M.event.endsAt) { const x = EV_END[M.event.type] || []; endEvent(x[0], x[1]); }
   } else if (!M.quick && ((M.walkMs || 0) >= M.nextWalk || now - M.evClock > 13 * 60000) && !mgActive && pos) spawnEvent();   // awaryjnie: min. co 13 min
   if (M && M.quick) quickTick(now);
+  if (M && save.imp.kin && pos) {   // bufory kinetyczne: 10 min szybkiego, równego marszu = +3 złomu
+    if (spd >= 1.1) M.kin = (M.kin || 0) + 1; else if (spd < 0.5) M.kin = 0;
+    if (M.kin >= 600) { M.kin = 0; M.scrap = (M.scrap || 0) + 3; toast('<b>BUFORY KINETYCZNE:</b> 10 min równego marszu → +3 ZŁOM', 'good', 5000); sfx('ok'); }
+  }
   if (!sim && pos && now - lastFix > 25000) $('#gpsInfo').textContent = 'GPS: SYGNAŁ UTRACONY';
   if (now - lastSave > 5000) saveMission();
   updateHUD();
