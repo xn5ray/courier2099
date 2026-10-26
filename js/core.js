@@ -41,7 +41,7 @@ const cnt = k => save.safe.filter(x => x === k).length;
 function grid() { let use = 0; for (const k in MODS) use += cnt(k) * MODS[k].w; const cap = CORE_W + cnt('gen') * MODS.gen.pw; return { cap, use, ok: use <= cap }; }
 const eff = k => grid().ok ? cnt(k) : 0;   // bonus modułu działa tylko gdy jest prąd
 const radius = () => Math.min(60, [20, 30, 40][save.up.boots] + eff('bench') * 7);
-const missionMinutes = () => MISSION_MIN + (save.up.battery ? 10 : 0);
+const missionMinutes = () => MISSION_MIN + (save.up.battery ? 10 : 0) + Math.min(2, eff('charge')) * 5;
 const isNight = () => { const h = new Date().getHours(); return h >= NIGHT.from || h < NIGHT.to; };
 
 /* ================= STAN ================= */
