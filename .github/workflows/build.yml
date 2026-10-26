@@ -1,0 +1,117 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Create project files
+        run: |
+          mkdir -p www scripts
+          cp index.html www/index.html
+          if [ -d css ]; then cp -r css www/; fi
+          if [ -d js ]; then cp -r js www/; fi
+          cat > capacitor.config.json <<'JSON'
+          {
+            "appId": "com.courier2099.app",
+            "appName": "COURIER 2099",
+            "webDir": "www",
+            "backgroundColor": "#05060a",
+            "server": { "androidScheme": "https" },
+            "android": { "allowMixedContent": false }
+          }
+          JSON
+          cat > scripts/prepare.js <<'JS'
+          const fs = require('fs'), path = require('path');
+          const root = process.cwd(), nm = path.join(root, 'node_modules'), out = path.join(root, 'www', 'vendor');
+          fs.mkdirSync(path.join(out, 'fonts'), { recursive: true });
+          const cp = (a, b) => fs.cpSync(a, b, { recursive: true });
+          const lf = path.join(nm, 'leaflet', 'dist');
+          cp(path.join(lf, 'leaflet.js'), path.join(out, 'leaflet.js'));
+          cp(path.join(lf, 'leaflet.css'), path.join(out, 'leaflet.css'));
+          cp(path.join(lf, 'images'), path.join(out, 'images'));
+          const RANGE = {
+            latin: 'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD',
+            'latin-ext': 'U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF'
+          };
+          const FONTS = [['orbitron', 'Orbitron', [500, 800]], ['share-tech-mono', 'Share Tech Mono', [400]]];
+          let css = '';
+          for (const [pkg, family, weights] of FONTS) {
+            const dir = path.join(nm, '@fontsource', pkg, 'files');
+            if (!fs.existsSync(dir)) continue;
+            for (const w of weights) for (const sub of Object.keys(RANGE)) {
+              const f = pkg + '-' + sub + '-' + w + '-normal.woff2';
+              if (!fs.existsSync(path.join(dir, f))) continue;
+              cp(path.join(dir, f), path.join(out, 'fonts', f));
+              css += "@font-face{font-family:'" + family + "';font-style:normal;font-weight:" + w + ";font-display:swap;src:url(fonts/" + f + ") format('woff2');unicode-range:" + RANGE[sub] + "}\n";
+            }
+          }
+          fs.writeFileSync(path.join(out, 'fonts.css'), css);
+          JS
+          cat > scripts/patch-android.js <<'JS'
+          const fs = require('fs'), path = require('path');
+          const f = path.join(process.cwd(), 'android', 'app', 'src', 'main', 'AndroidManifest.xml');
+          let x = fs.readFileSync(f, 'utf8');
+          let add = '';
+          for (const p of ['ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION', 'VIBRATE', 'WAKE_LOCK', 'INTERNET', 'POST_NOTIFICATIONS'])
+            if (!x.includes('android.permission.' + p + '"')) add += '    <uses-permission android:name="android.permission.' + p + '" />\n';
+          if (add) x = x.replace('</manifest>', add + '</manifest>');
+          if (!x.includes('android:screenOrientation')) x = x.replace('<activity', '<activity\n            android:screenOrientation="portrait"');
+          fs.writeFileSync(f, x);
+          JS
+
+      - name: Install dependencies
+        run: |
+          npm init -y
+          npm install @capacitor/core @capacitor/android @capacitor/app @capacitor/geolocation @capacitor/local-notifications @capacitor-community/keep-awake leaflet @fontsource/orbitron @fontsource/share-tech-mono
+          npm install -D @capacitor/cli
+
+      - name: Build web assets and Android project
+        run: |
+          node scripts/prepare.js
+          npx cap add android
+          npx cap sync android
+          node scripts/patch-android.js
+
+      - name: Use fixed signing key (so updates install over old versions)
+        run: |
+          mkdir -p ~/.android
+          echo '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' | base64 -d > ~/.android/debug.keystore
+
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Publish APK as a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk courier2099.apk
+          gh release create "build-${{ github.run_number }}" courier2099.apk \
+            --title "COURIER 2099 build ${{ github.run_number }}" \
+            --notes "Debug APK. Download courier2099.apk on your phone and install it."
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: courier2099-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
