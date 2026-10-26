@@ -10,7 +10,10 @@ MG.overload = { title: 'PRZECIĄŻENIE WĘZŁA', run(body, c) {
     <button class="btn big pink mg-tap">⚡ PRZECIĄŻ ⚡</button>`;
   const bar = c.q('.gauge i'), txt = c.q('.gauge b'), btn = c.q('.mg-tap');
   const stopT = mgLimit(7 + L * 0.5, c.q('.mg-tbar i'), c.timeout);
-  btn.addEventListener('pointerdown', e => { e.preventDefault(); v = Math.min(100, v + gain); haptic(12); beep(260 + v * 6, .04, 'square'); });
+  btn.addEventListener('pointerdown', e => {
+    e.preventDefault(); v = Math.min(100, v + gain); haptic(12); beep(260 + v * 6, .04, 'square');
+    if (v >= 100) { bar.style.width = '100%'; txt.textContent = '100%'; c.done(); }   // sprawdź od razu: pętla najpierw odejmuje decay, więc 100% nigdy by do niej nie dotarło
+  });
   const stopL = mgLoop(dt => {
     v = Math.max(0, v - decay * dt);
     bar.style.width = v + '%'; txt.textContent = Math.floor(v) + '%';
