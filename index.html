@@ -241,6 +241,7 @@ background:repeating-radial-gradient(circle,rgba(0,240,255,.35) 0 2px,transparen
         <div><span>ZŁOM ⚙</span><b id="stScrap">0</b></div><div><span>CHŁODZIWO ❄</span><b id="stCool">0</b></div><div><span>KOMPONENTY ◈</span><b id="stComp">0</b></div>
       </div>
       <button class="btn big" id="btnStart">▶ START MISJI</button>
+      <button class="btn big pink" id="btnQuick">▶ SZYBKA MISJA (1 CEL)</button>
       <button class="btn pink" id="btnResume" hidden>⟲ WZNÓW MISJĘ</button>
       <button class="btn" id="btnShop">⛁ KRYJÓWKA · THE SAFEHOUSE</button>
       <button class="btn" id="btnEditor">✎ EDYTOR PUNKTÓW</button>
@@ -255,6 +256,7 @@ background:repeating-radial-gradient(circle,rgba(0,240,255,.35) 0 2px,transparen
         <b>JAK GRAĆ:</b> Misja trwa 45 min (z Baterią GPS 55). Wyjdź na zewnątrz, naciśnij START. Gra wylosuje 3–4 cele w promieniu 0,5–2 km.
         Idź do celów <b>po kolei</b>. Gdy będziesz w zasięgu (domyślnie 20 m), odblokuje się przycisk akcji → minigra → cel zaliczony.
         Po ostatnim celu wróć do bazy (punkt startu). Losowe zdarzenia: patrol dronów (strefa kary) i szybki przekaz (bonus).<br><br>
+        <b>SZYBKA MISJA:</b> jeden cel 300–600 m od ciebie i 10–15 min (Node Burn: tylko 4 min!). Losowy wariant: <b>Ghost Drop</b> (ciche podejście + długie przytrzymanie skanera), <b>Node Burn</b> (dwie trudne minigry pod presją czasu), <b>Data Broker</b> (rozmowa z informatorem + przejęcie częstotliwości), <b>Power Surge</b> (skok napięcia: złom i kredyty). Bez powrotu do bazy i bez losowych zdarzeń.<br><br>
         <b>KRYJÓWKA:</b> za ₵, złom i chłodziwo budujesz moduły na siatce 4×4. Pilnuj limitu mocy (W) — przy przeciążeniu bonusy wyłączają się, dopóki nie dostawisz Generatora.<br><br><b>TRYB SYMULACJI</b> pozwala przetestować grę przy biurku: dotknij mapy, aby się „teleportować”.
       </div>
     </div>
@@ -324,6 +326,11 @@ background:repeating-radial-gradient(circle,rgba(0,240,255,.35) 0 2px,transparen
     <p class="mg-help">Ranny haker prosi o pomoc: potrzebuje twojego łącza na 2 minuty. Co robisz?</p>
     <button class="btn" data-c="help">POMÓŻ (−2 min z zegara, +120 ₵)</button><button class="btn small" data-c="skip">ZIGNORUJ</button>
     <button class="btn pink" data-c="sell">SPRZEDAJ KORPORACJI (+200 ₵, trudniejsze minigry)</button></div></div>
+  <div id="qdlg" class="overlay" hidden><div class="panel">
+    <div class="mg-title" id="qdTitle">DATA BROKER</div><div class="mg-sub" id="qdWho"></div>
+    <p class="mg-help" id="qdText"></p>
+    <button class="btn big" id="qdOk">POBIERZ DANE</button><button class="btn small" id="qdNo">ODEJDŹ (czas leci dalej)</button>
+  </div></div>
   <div id="mg" class="overlay" hidden>
     <div class="panel">
       <div class="mg-title" id="mgTitle">HAKOWANIE</div>
@@ -965,7 +972,7 @@ function clearMap() {
 }
 
 /* ================= HUD ================= */
-const actLabel = t => t === 'pickup' ? 'POBIERZ DANE' : t === 'drop' ? 'DOSTARCZ PAKIET' : 'ZADOKUJ W BAZIE';
+const actLabel = t => t === 'quick' && M && M.quick ? QR_VARIANTS[M.quick.v].act : t === 'pickup' ? 'POBIERZ DANE' : t === 'drop' ? 'DOSTARCZ PAKIET' : 'ZADOKUJ W BAZIE';
 function updateHUD() {
   if (!M) return;
   const g = goal(), r = radius();
@@ -982,7 +989,7 @@ function updateHUD() {
   }
   const d = dist(pos, g);
   const ds = Math.max(0, d + (M.event && M.event.type === 'glitch' ? M.event.cur || 0 : 0)); $('#gDist').textContent = ds >= 1000 ? (ds / 1000).toFixed(2) + ' km' : Math.round(ds) + ' m';
-  $('#gSub').textContent = `ZASIĘG INTERAKCJI: ${r} m`;
+  $('#gSub').textContent = M.quick ? quickSub(d, r) : `ZASIĘG INTERAKCJI: ${r} m`;
   $('#arrow').style.transform = `rotate(${bearing(pos, g) - (heading == null ? 0 : heading)}deg)`;
   const inR = d <= r;
   btn.disabled = !inR || mgActive;
@@ -1026,6 +1033,100 @@ function onPosChanged() {
   else if (dist(mvAnchor, pos) >= 8) { M.walkMs = (M.walkMs || 0) + Math.min(now - mvAnchor.t, 90000); mvAnchor = { lat: pos.lat, lng: pos.lng, t: now }; }
   else if (now - mvAnchor.t > 90000) { mvAnchor = { lat: pos.lat, lng: pos.lng, t: now }; }   // stoisz — nie licz
   updatePlayerMarker(); checkPatrol(); updateHUD();
+}
+
+/* ================= SZYBKA MISJA (QUICK RUN) ================= */
+const QR_BASE = 120, QR_QUIET_R = 60, QR_GHOST_PEN = 25, QR_MG_PEN = 8;
+const QR_VARIANTS = {
+  ghost:  { title: 'GHOST DROP',  act: 'ZOSTAW PACZKĘ',            dist: [300, 600], min: [10, 15], reward: 80,  scrap: [2, 4],
+            intro: 'Podejdź <b>cicho</b> (ostatnie 60 m wolnym krokiem) i zostaw paczkę bez alarmu.' },
+  node:   { title: 'NODE BURN',   act: 'PRZEŁADUJ WĘZEŁ',          dist: [300, 380], fixedMin: 4, reward: 170, scrap: [3, 5],
+            intro: '<b>4 MINUTY!</b> Węzeł zaraz się wypali — biegnij, a na miejscu czekają dwie trudne minigry.' },
+  broker: { title: 'DATA BROKER', act: 'ROZMAWIAJ Z INFORMATOREM', dist: [300, 600], min: [10, 15], reward: 110, scrap: [2, 4],
+            intro: 'Informator czeka w punkcie. Wysłuchaj go i przejmij surowe dane.' },
+  surge:  { title: 'POWER SURGE', act: 'PODŁĄCZ DO SIECI',         dist: [300, 600], min: [10, 15], reward: 130, scrap: [5, 8],
+            intro: 'Skok napięcia w sieci! Dotrzyj do węzła i ujarzmij przepięcie — extra złom i kredyty.' }
+};
+const QR_BROKER = [
+  { who: 'INFORMATOR „CIEŃ-9”', text: 'Spóźniłeś się dwie minuty, kurierze. Dane leżą w buforze tego węzła, ale ochrona korpo zmienia częstotliwość co kilka sekund. Złap falę, zanim ktoś zorientuje się, że słucha.' },
+  { who: 'INFORMATOR „WDOWA”', text: 'Nie pytaj, skąd to mam. Ktoś z zarządu sprzedaje plany dzielnicy na lewo. Ściągnij paczkę, zanim zniknie z sieci — i nigdy mnie tu nie widziałeś.' },
+  { who: 'INFORMATOR „KRÓLIK”', text: 'Mam dla ciebie surowy dump z kamer na Nowym Rynku. Połowa to szum, ale jeśli dostroisz odbiornik, wyciągniesz coś, za co fixerzy dobrze zapłacą.' },
+  { who: 'INFORMATOR „SZEPT”', text: 'Drony zmieniają trasę za kilka minut. Dane o ich patrolach są w tym węzle — zsynchronizuj częstotliwość i zgarnij je, zanim się zamkną.' }
+];
+const quickKeys = Object.keys(QR_VARIANTS);
+const pickQuickVariant = () => quickKeys[Math.floor(Math.random() * quickKeys.length)];
+const quickPts = (base, v) => { const [a, b] = QR_VARIANTS[v].dist; return AREA.points.filter(q => { const d = dist(base, q); return d >= a && d <= b; }); };
+const quickHasPts = (base, v) => quickPts(base, v).length > 0;
+function genQuickTarget(base, v) {
+  const [a, b] = QR_VARIANTS[v].dist, pts = quickPts(base, v);
+  if (pts.length) { const q = pts[Math.floor(Math.random() * pts.length)]; return { lat: q.lat, lng: q.lng }; }
+  for (let i = 0; i < 120; i++) {
+    const p0 = offset(base, rand(a, b), Math.random() * 360), p = roadGrid ? snap(p0, 200) : p0;
+    if (!p) continue;
+    const d = dist(base, p); if (d >= a * 0.9 && d <= b * 1.1) return { lat: p.lat, lng: p.lng };
+  }
+  const p0 = offset(base, (a + b) / 2, Math.random() * 360), p = (roadGrid && snap(p0, 300)) || p0;
+  return { lat: p.lat, lng: p.lng };
+}
+function createQuick(base, v) {
+  const V = QR_VARIANTS[v], now = Date.now(), mins = V.fixedMin || Math.round(rand(V.min[0], V.min[1]));
+  const t = genQuickTarget(base, v), nm = shuffle(NAMES.slice())[0];
+  return { base: { lat: base.lat, lng: base.lng }, preset: false, quick: { v, det: 0, pen: 0, started: false, cool: 0, bonus: 0, clean: 0 },
+    targets: [{ lat: t.lat, lng: t.lng, name: V.title + ' · ' + nm, type: 'quick', done: false }], idx: 0, startedAt: now, endsAt: now + mins * 60000,
+    done: 0, relays: 0, penalties: 0, event: null, extra: 0, walkMs: 0, nextWalk: 1e12, hard: false, scrap: 0, cool: 0 };
+}
+function quickSub(d, r) {
+  const q = M.quick;
+  if (q.v === 'ghost') return d <= QR_QUIET_R ? `🤫 CICHE PODEJŚCIE · DETEKCJA ${Math.round(q.det)}% — IDŹ WOLNO` : `GHOST DROP · ostatnie ${QR_QUIET_R} m idź cicho · zasięg ${r} m`;
+  if (q.v === 'node') return `🔥 NODE BURN · węzeł się wypala · zasięg ${r} m`;
+  return `ZASIĘG INTERAKCJI: ${r} m`;
+}
+function quickTick(now) {
+  const q = M.quick; if (!pos || mgActive || M.idx >= M.targets.length) return;
+  const d = dist(pos, M.targets[0]);
+  if (q.v === 'ghost' && !sim && d <= QR_QUIET_R) {
+    if (spd * 3.6 > 5.5) { q.det = Math.min(100, q.det + 12); haptic(Math.min(600, 150 + q.det * 5)); }
+    else q.det = Math.max(0, q.det - 10);
+    if (q.det >= 100) { q.det = 45; q.pen++; penalty(QR_GHOST_PEN); sfx('bad'); haptic([300, 100, 300]); if (M) toast('<b>WYKRYTO RUCH!</b> Czujniki cię namierzyły. −' + QR_GHOST_PEN + ' s. Zwolnij do marszu!', 'bad', 5000); }
+  }
+  if (M && q.v === 'node' && !q.started && d <= radius() && now >= (q.cool || 0)) onQuickAct();   // Node Burn startuje od razu po dotarciu
+}
+function quickDone() {
+  const q = M.quick, V = QR_VARIANTS[q.v];
+  q.bonus = V.reward; if (q.v === 'ghost' && !q.pen) q.clean = 40;
+  M.scrap = (M.scrap || 0) + Math.round(rand(V.scrap[0], V.scrap[1]));
+  M.targets[0].done = true; M.idx = 1; M.done = 1;
+  sfx('ok'); haptic([80, 40, 80]); saveMission(); finish('success');
+}
+function quickChain(list, title, pen, hard, done) {
+  let i = 0; const q = M.quick; q.started = true;
+  const next = () => {
+    if (!M) return;
+    startMinigame(list[i], () => { if (!M) return; if (++i >= list.length) done(); else next(); },
+      reason => {
+        if (reason === 'cancel') { if (M && M.quick) { M.quick.started = false; M.quick.cool = Date.now() + 8000; } return; }
+        if (M && M.quick && M.quick.v === 'ghost') M.quick.pen++;
+        penalty(pen); if (!M) return;
+        toast(`<b>${reason === 'timeout' ? 'CZAS MINĄŁ' : 'WŁAMANIE NIEUDANE'}</b> −${pen} s · ponów`, 'warn', 3500);
+        next();
+      }, { title: title + (list.length > 1 ? ` (${i + 1}/${list.length})` : ''), hard });
+  };
+  next();
+}
+function quickBroker() {
+  const L = QR_BROKER[Math.floor(Math.random() * QR_BROKER.length)], q = M.quick; q.started = true;
+  $('#qdWho').textContent = L.who; $('#qdText').textContent = L.text; $('#qdlg').hidden = false; sfx('alert');
+  $('#qdOk').onclick = () => { $('#qdlg').hidden = true; if (M) quickChain(['frequency'], 'DATA BROKER · POBIERANIE DANYCH', QR_MG_PEN, false, quickDone); };
+  $('#qdNo').onclick = () => { $('#qdlg').hidden = true; if (M) { q.started = false; q.cool = Date.now() + 5000; } };
+}
+function onQuickAct() {
+  if (!M || !M.quick || !pos || mgActive || M.idx >= M.targets.length) return;
+  if (!$('#qdlg').hidden) return;
+  const q = M.quick;
+  if (q.v === 'ghost') quickChain(['biometric'], 'GHOST DROP · ZOSTAW PACZKĘ', 15, false, quickDone);
+  else if (q.v === 'node') { toast('<b>NODE BURN!</b> Natychmiast przeciąż węzeł i odetnij zasilanie!', 'bad', 4000); quickChain(['overload', 'wires'], 'NODE BURN', 10, true, quickDone); }
+  else if (q.v === 'broker') quickBroker();
+  else quickChain([Math.random() < 0.5 ? 'balance' : 'icebreaker'], 'POWER SURGE', QR_MG_PEN, false, quickDone);
 }
 
 /* ================= WYDARZENIA ================= */
@@ -1131,14 +1232,15 @@ function tick() {
   if (M.event) {
     evTick();
     if (M.event && now >= M.event.endsAt) { const x = EV_END[M.event.type] || []; endEvent(x[0], x[1]); }
-  } else if (((M.walkMs || 0) >= M.nextWalk || now - M.evClock > 13 * 60000) && !mgActive && pos) spawnEvent();   // awaryjnie: min. co 13 min
+  } else if (!M.quick && ((M.walkMs || 0) >= M.nextWalk || now - M.evClock > 13 * 60000) && !mgActive && pos) spawnEvent();   // awaryjnie: min. co 13 min
+  if (M && M.quick) quickTick(now);
   if (!sim && pos && now - lastFix > 25000) $('#gpsInfo').textContent = 'GPS: SYGNAŁ UTRACONY';
   if (now - lastSave > 5000) saveMission();
   updateHUD();
 }
 
 /* ================= START / KONIEC ================= */
-async function startMission() {
+async function startMission(quick) {
   initAudio(); requestCompass(); lockScreen(); initNotif();
   sim = save.sim;
   $('#menuHint').textContent = '';
@@ -1150,9 +1252,10 @@ async function startMission() {
     else { $('#loading').hidden = true; releaseLock(); $('#menuHint').textContent = geoErrText(e); return; }
   }
   if (sim && dist(start, FIXED_BASE) > FIXED_BASE_RADIUS) start = { lat: FIXED_BASE.lat, lng: FIXED_BASE.lng, acc: 5 };
-  const bs = dist(start, FIXED_BASE) <= FIXED_BASE_RADIUS ? { lat: FIXED_BASE.lat, lng: FIXED_BASE.lng } : start;   // baza misji
+  const bs = quick ? { lat: start.lat, lng: start.lng } : (dist(start, FIXED_BASE) <= FIXED_BASE_RADIUS ? { lat: FIXED_BASE.lat, lng: FIXED_BASE.lng } : start);   // baza misji
   let roadNodes = null, giveUp = false;
-  const presetOn = usePreset(bs);
+  const qv = quick ? pickQuickVariant() : null;
+  const presetOn = quick ? quickHasPts(bs, qv) : usePreset(bs);
   while (!presetOn && !roadNodes && !giveUp) {
     for (let tries = 0; tries < 2 && !roadNodes; tries++) {
       $('#loadMsg').textContent = 'POBIERANIE MAPY ULIC…' + (tries ? ' (próba ' + (tries + 1) + ')' : '');
@@ -1168,12 +1271,13 @@ async function startMission() {
   roadGrid = roadNodes ? buildGrid(roadNodes, bs.lat) : null;
   $('#loading').hidden = true;
   if (typeof L === 'undefined') { $('#menuHint').textContent = 'Nie załadowano biblioteki mapy (Leaflet) — sprawdź internet.'; releaseLock(); return; }
-  M = createMission(bs);
+  M = quick ? createQuick(bs, qv) : createMission(bs);
   pos = null;
   beginUI(false);
   setPos(start.lat, start.lng, start.acc);
   saveMission();
-  if (presetOn) toast(fixedUsed ? '<b>TRASA: ' + fixedUsed + '</b> — stałe punkty, idź po kolei.' : '<b>PRESET: ' + AREA.name + '</b> — cele wybrane z gotowych punktów na ulicach.', 'good', 6000);
+  if (quick) toast('<b>SZYBKA MISJA: ' + QR_VARIANTS[qv].title + '</b> — ' + QR_VARIANTS[qv].intro + (!presetOn && !roadGrid ? ' <i>(cel bez weryfikacji dróg)</i>' : ''), 'good', 9000);
+  else if (presetOn) toast(fixedUsed ? '<b>TRASA: ' + fixedUsed + '</b> — stałe punkty, idź po kolei.' : '<b>PRESET: ' + AREA.name + '</b> — cele wybrane z gotowych punktów na ulicach.', 'good', 6000);
   else if (!roadGrid) toast('<b>Brak danych o ulicach</b> — cele wylosowane bez sprawdzania dróg. Oceń je na mapie przed wyjściem.', 'warn', 9000);
   toast(sim ? '<b>TRYB SYMULACJI:</b> dotknij mapy, aby się przenieść.' : '<b>MISJA ROZPOCZĘTA.</b> Idź do celu nr 1.', 'good', 6000);
   sfx('ok'); haptic(60);
@@ -1184,7 +1288,7 @@ function resumeMission() {
   sim = save.sim; M = m; pos = sim ? { lat: M.base.lat, lng: M.base.lng, acc: 5 } : null;
   beginUI(true);
   const b0 = { lat: M.base.lat, lng: M.base.lng };
-  if (!M.preset) fetchRoads(b0).then(n => { roadGrid = n ? buildGrid(n, b0.lat) : null; });
+  if (!M.preset && !M.quick) fetchRoads(b0).then(n => { roadGrid = n ? buildGrid(n, b0.lat) : null; });
   toast('Misja wznowiona.', 'good', 3000);
 }
 function beginUI(resume) {
@@ -1200,12 +1304,24 @@ function finish(kind) {
   if (!M) return;
   const m = M; M = null;
   clearInterval(tickT); stopWatch(); releaseLock();
-  if (mgCancel) mgCancel(); mgCancel = null; mgActive = false; $('#mg').hidden = true;
+  if (mgCancel) mgCancel(); mgCancel = null; mgActive = false; $('#mg').hidden = true; $('#qdlg').hidden = true;
   try { localStorage.removeItem(MISSION_KEY); } catch (e) {}
   const rem = Math.max(0, Math.ceil((m.endsAt - Date.now()) / 1000));
   const lines = []; let total = 0, title;
   const base = m.done * REWARD_TARGET;
-  if (kind === 'success') {
+  if (m.quick) {
+    const V = QR_VARIANTS[m.quick.v];
+    if (kind === 'success') {
+      title = 'SZYBKA MISJA ZAKOŃCZONA · ' + V.title;
+      const tb = Math.floor(rem / 8), bn = m.quick.bonus || V.reward;
+      lines.push(['Cel dostarczony', QR_BASE], [`Premia za czas (zostało ${fmt(rem)})`, tb], [V.title + ' — premia za zadanie', bn]);
+      total += QR_BASE + tb + bn;
+      if (m.quick.clean) { lines.push(['Czyste podejście (bez wykrycia)', m.quick.clean]); total += m.quick.clean; }
+    } else {
+      title = kind === 'timeout' ? 'CZAS MINĄŁ — SZYBKA MISJA NIEUDANA' : 'SZYBKA MISJA PRZERWANA';
+      lines.push(['Brak wypłaty za niedokończone zadanie', 0]);
+    }
+  } else if (kind === 'success') {
     title = 'MISJA ZAKOŃCZONA';
     const tb = Math.floor(rem / 6);
     lines.push([`Dostarczone cele (${m.done})`, base], [`Premia za czas (zostało ${fmt(rem)})`, tb], ['Bonus za ukończenie misji', REWARD_COMPLETE]);
@@ -1244,6 +1360,7 @@ function onAct() {
   if (!M || !pos || mgActive) return;
   const g = goal();
   if (dist(pos, g) > radius()) return;
+  if (M.quick) { onQuickAct(); return; }
   if (g.type === 'base') { finish('success'); return; }
   runMinigame(g.type === 'pickup' ? 'POBIERANIE DANYCH' : 'DOSTAWA PAKIETU', () => {
     const t = M.targets[M.idx]; t.done = true; M.idx++; M.done++; M.scrap = (M.scrap || 0) + 2;
@@ -1326,7 +1443,7 @@ function startMinigame(gameType, onSuccess, onFailure, opts) {
     }, ok ? 450 : 1100);
   };
   const ctx = {
-    lvl: Math.min(3, save.up.decrypt + (opts.boost ? 1 : 0)), alive,
+    lvl: opts.hard ? 0 : Math.min(3, save.up.decrypt + (opts.boost ? 1 : 0)), alive,
     done: () => end(true),
     fail: msg => end(false, 'fail', msg),
     timeout: () => end(false, 'timeout', 'CZAS MINĄŁ'),
@@ -1793,6 +1910,7 @@ window.MINIGAMES = MG_ALL.slice();
 /* ================= PODPIĘCIE ZDARZEŃ ================= */
 document.addEventListener('click', e => { if (e.target.closest('.btn')) { initAudio(); sfx('click'); } });
 $('#btnStart').onclick = () => { if (loadMissionSaved() && !confirm('Masz niedokończoną misję. Rozpocząć nową (stara przepadnie)?')) return; startMission(); };
+$('#btnQuick').onclick = () => { if (loadMissionSaved() && !confirm('Masz niedokończoną misję. Rozpocząć nową (stara przepadnie)?')) return; startMission(true); };
 $('#btnResume').onclick = resumeMission;
 $('#btnResetCred').onclick = () => { if (!confirm('Zresetować kasę do 0 ₵? Ulepszenia zostają.')) return; save.credits = 0; persist(); renderMenu(); sfx('bad'); haptic(60); };
 $('#btnShop').onclick = () => { selT = null; renderSafe(); show('shop'); };
@@ -1824,6 +1942,7 @@ $('#resOk').onclick = () => { $('#result').hidden = true; renderMenu(); show('me
   const app = plug('App'); if (!app) return;
   app.addListener('backButton', () => {
     if (!$('#mg').hidden) { cancelMinigame(); return; }
+    if (!$('#qdlg').hidden) return;
     if ($('#editor').classList.contains('active')) { closeEditor(); return; }
     if (M) { toast('Misja trwa — użyj ✕ aby ją przerwać.', 'warn', 2500); return; }
     if ($('#shop').classList.contains('active')) { renderMenu(); show('menu'); return; }
