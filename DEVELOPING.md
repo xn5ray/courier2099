@@ -12,6 +12,7 @@ js/core.js                    narzędzia, most do Androida, zapis gry, dźwięk,
 js/safehouse.js               menu główne i ekran Kryjówki
 js/missions.js                generowanie celów, pobieranie ulic (OSM), stan misji
 js/editor.js                  edytor punktów
+js/cloud.js                   kopia punktów w chmurze (Firebase Realtime Database, REST)
 js/map-hud.js                 mapa Leaflet i pasek informacji (HUD)
 js/quick-run.js               logika Szybkiej Misji (czyta dane z quick-missions.js)
 js/events.js                  losowe wydarzenia + pętla tick() co sekundę
@@ -66,3 +67,34 @@ Przykład: w `js/core.js` funkcja `radius()` dodaje `eff('bench') * 7` m do prom
 ## Budowanie APK
 
 Wystarczy wrzucić zmiany do repozytorium na GitHubie — workflow `.github/workflows/build.yml` buduje APK (zakładka Actions → Releases).
+
+## Chmura punktów (Firebase)
+
+Punkty z edytora leżą w telefonie (`localStorage`), więc znikają przy odinstalowaniu aplikacji. Chmura trzyma ich kopię i przywraca po reinstalacji.
+Działa bez logowania: dostęp daje **kod synchronizacji** (16 znaków, losowy) — zapisz go; po reinstalacji wpisz go w edytorze (☁ CHMURA).
+
+**Jednorazowa konfiguracja:**
+1. https://console.firebase.google.com → *Add project* (Analytics niepotrzebne).
+2. *Build → Realtime Database → Create database* (region np. `europe-west1`, tryb *locked*).
+3. Zakładka **Rules** → wklej i *Publish*:
+```json
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "sync": {
+      "$code": {
+        ".read": "$code.length >= 16",
+        ".write": "$code.length >= 16",
+        ".validate": "newData.hasChildren(['t']) && newData.child('t').isNumber()"
+      }
+    }
+  }
+}
+```
+   Nikt nie wypisze zawartości bazy (root jest zamknięty) — dostęp ma tylko ten, kto zna cały kod.
+4. Skopiuj adres bazy (zakładka **Data**, np. `https://twoj-projekt-default-rtdb.europe-west1.firebasedatabase.app`) do `CLOUD_URL` w `js/data/config.js`, wrzuć na GitHuba — nowy APK ma już chmurę.
+
+**Jak to działa:** każda zmiana w edytorze jest wysyłana po ok. 1,5 s; przy starcie i otwarciu edytora gra porównuje znaczniki czasu (`t`) i wczytuje nowszą wersję. Gdy chmura jest nowsza, a masz niewysłane zmiany, gra pyta, którą wersję zostawić.
+**Synchronizowane są tylko punkty z edytora** (nie kredyty ani kryjówka — to nadal `save` w `localStorage`).
+**Uwaga:** zapis jest na kod, nie na konto — kto zna kod, może zmienić twoje punkty. Nie udostępniaj go.

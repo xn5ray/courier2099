@@ -226,3 +226,7 @@ background:repeating-radial-gradient(circle,rgba(0,240,255,.35) 0 2px,transparen
 @keyframes nightpulse{50%{box-shadow:0 0 22px var(--pink),inset 0 0 10px rgba(255,43,214,.35)}}
 body.night .cell,body.night .panel-b{animation:nightpulse 1.6s infinite}
 body.night::after{background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 2px,rgba(255,43,214,.07) 2px 3px)}
+
+#edCloud{font-size:11px;color:var(--dim);margin-top:6px;min-height:14px}
+#clInput{display:block;width:100%;padding:12px;margin:10px 0 0;background:rgba(0,0,0,.6);border:1px solid var(--cyan);color:var(--cyan);font:700 15px var(--mono);letter-spacing:.12em;text-align:center;text-transform:uppercase;user-select:text;-webkit-user-select:text;border-radius:0}
+#clInput:focus{outline:none;border-color:var(--pink)}
