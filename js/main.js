@@ -41,6 +41,7 @@ $('#resOk').onclick = () => { $('#result').hidden = true; renderMenu(); show('me
   const app = plug('App'); if (!app) return;
   app.addListener('backButton', () => {
     if (!$('#mg').hidden) { cancelMinigame(); return; }
+    if (!$('#cloud').hidden) { closeCloud(); return; }
     if (!$('#qdlg').hidden) return;
     if ($('#editor').classList.contains('active')) { closeEditor(); return; }
     if (M) { toast('Misja trwa — użyj ✕ aby ją przerwać.', 'warn', 2500); return; }

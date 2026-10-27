@@ -26,7 +26,7 @@ function edItems() {
   FIXED_ROUTES.forEach((r, ri) => r.pts.forEach((q, qi) => out.push({ k: 'f', id: ri + '-' + qi, s: q.n + ' · ' + q.s, lat: q.lat, lng: q.lng, st: pe.fmoved[ri + '-' + qi] ? 'moved' : 'fixed' })));
   return out;
 }
-function edCommit() { savePe(); applyPts(); edRender(); }
+function edCommit() { pe.t = Date.now(); savePe(); applyPts(); edRender(); if (typeof cloudSchedule === 'function') cloudSchedule(); }
 function edRender() {
   if (!edMap) return;
   edLayer.clearLayers();
@@ -59,6 +59,7 @@ function edRender() {
   if (edMode) add('ANULUJ', () => { edMode = null; edRender(); });
   else {
     add('+ DODAJ PUNKT', () => { edMode = 'add'; edSel = null; edRender(); });
+    add('☁ CHMURA', () => openCloud());
     add('RESET DOMYŚLNE', () => { if (!confirm('Przywrócić wszystkie punkty do ustawień domyślnych? Twoje zmiany przepadną.')) return;
       pe = { removed: [], moved: {}, added: [], fmoved: {} }; edSel = null; edMode = null; edCommit(); }, 'pink');
   }
@@ -87,6 +88,7 @@ function openEditor() {
     edMap.on('click', e => edMapClick(e.latlng));
   }
   edSel = null; edMode = null;
+  if (typeof cloudSync === 'function') cloudSync();
   setTimeout(() => { edMap.invalidateSize(); edMap.fitBounds(L.polygon(AREA.poly).getBounds(), { padding: [20, 20] }); edRender(); }, 80);
 }
 function closeEditor() { edSel = null; edMode = null; renderMenu(); show('menu'); }
