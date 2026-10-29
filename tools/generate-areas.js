@@ -76,12 +76,15 @@ for (const a of areas) {   // sąsiedzi (w tym 'home')
 console.log(`Strefy: ${areas.length} (pierścienie: ${RINGS}, rozstaw ${SPACING} m)`);
 
 /* ---------- OpenStreetMap (Overpass): nazwy dzielnic + punkty na ulicach ---------- */
-const MIRRORS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.openstreetmap.fr/api/interpreter'];
+const MIRRORS = ['https://overpass-api.de/api/interpreter', 'https://lz4.overpass-api.de/api/interpreter', 'https://z.overpass-api.de/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  'https://overpass.openstreetmap.fr/api/interpreter'];
+if (process.env.OVERPASS_URL) MIRRORS.splice(0, MIRRORS.length, process.env.OVERPASS_URL);   // własny serwer Overpass (opcjonalnie)
 const HEAD = { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'courier2099-area-generator/1.0 (https://github.com/xn5ray/courier2099)', 'Accept': 'application/json' };
 let lastErr = '';
 async function overpass(q) {
-  for (let t = 0; t < 4; t++) {
-    for (const u of MIRRORS) {
+  for (let t = 0; t < 6; t++) {
+    for (const u of MIRRORS.slice().sort(() => rand() - .5)) {
       try {
         const r = await fetch(u, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: HEAD, signal: AbortSignal.timeout(90000) });
         if (r.ok) return await r.json();
@@ -89,7 +92,7 @@ async function overpass(q) {
       } catch (e) { lastErr = new URL(u).host + ' → ' + (e.cause && (e.cause.code || e.cause.message) || e.message); }
       if (arg('debug', false)) console.log('\n    ' + lastErr);
     }
-    await new Promise(r => setTimeout(r, 4000 * (t + 1)));   // przerwa rośnie: 4 s, 8 s, 12 s…
+    await new Promise(r => setTimeout(r, 5000 * (t + 1)));   // przerwa rośnie: 5 s, 10 s, 15 s…
   }
   throw new Error('Overpass nie odpowiada. Ostatni błąd: ' + lastErr);
 }
@@ -122,13 +125,19 @@ async function fillArea(a) {
   for (const c of inside) { if (pick.length >= MAXPTS) break; if (pick.every(p => hav(p, c) >= 130)) pick.push(c); }
   a.points = pick;
 }
+const CACHE = path.join(__dirname, '.areas-cache.json'), CKEY = [RINGS, SPACING, MAXPTS, SEED, C.lat, C.lng].join('|');
+let cache = {}; try { const c = JSON.parse(fs.readFileSync(CACHE, 'utf8')); if (c.key === CKEY) cache = c.zones; } catch (e) {}
+const saveCache = () => fs.writeFileSync(CACHE, JSON.stringify({ key: CKEY, zones: cache }));
 (async () => {
-  if (!OFFLINE) try { await overpass('[out:json][timeout:10];node(1);out;'); console.log('Połączenie z OpenStreetMap działa.'); } catch (e) { console.log('\n' + e.message + '\nSprawdź internet/VPN/firewall albo uruchom z --offline.'); process.exit(1); }
+  if (!OFFLINE) try { await overpass('[out:json][timeout:10];node(1);out;'); console.log('Połączenie z OpenStreetMap działa.'); } catch (e) { console.log('\n' + e.message + '\n(Serwery OSM bywają chwilowo przeciążone — próbuję dalej strefa po strefie; ukończone strefy zapamiętuję, więc możesz przerwać i uruchomić ponownie.)'); }
+  let failed = 0;
   if (!OFFLINE) for (const a of areas) {
     process.stdout.write(`  ${a.id}/${areas.length} … `);
-    try { await fillArea(a); console.log(`${a.name} · ${a.points.length} pkt`); } catch (e) { console.log('BŁĄD: ' + e.message); }
+    if (cache[a.id]) { a.name = cache[a.id].name; a.named = cache[a.id].named; a.points = cache[a.id].points; console.log(`${a.name} · ${a.points.length} pkt (z pamięci)`); continue; }
+    try { await fillArea(a); cache[a.id] = { name: a.name, named: a.named, points: a.points }; saveCache(); console.log(`${a.name} · ${a.points.length} pkt`); } catch (e) { console.log('BŁĄD: ' + e.message); failed++; }
     await new Promise(r => setTimeout(r, 1200));
   }
+  if (failed) console.log(`\nUWAGA: ${failed} stref bez punktów (serwer OSM nie odpowiedział). Uruchom skrypt jeszcze raz — dociągnie tylko brakujące.`);
   /* unikalne nazwy (gdy OSM nie podał dzielnicy, zostaje „SEKTOR KIERUNEK” — dopisz numer przy powtórkach) */
   const seen = {};
   for (const a of areas) { seen[a.name] = (seen[a.name] || 0) + 1; if (seen[a.name] > 1) a.name += ' ' + seen[a.name]; }
