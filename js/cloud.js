@@ -7,7 +7,7 @@ const CLOUD_KEY = 'courier2099.cloud.code.v1', CLOUD_DIRTY = 'courier2099.cloud.
 const CLOUD_ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // bez 0/O/1/I, żeby kod dało się przepisać
 let cloudTimer = null, cloudBusy = false, cloudHold = false;   // cloudHold = konflikt czeka na decyzję (nie nadpisuj chmury)
 
-const cloudOn = () => typeof CLOUD_URL === 'string' && /^https:\/\//.test(CLOUD_URL);
+const cloudOn = () => typeof CLOUD_URL === 'string' && /^https:\/\//.test(CLOUD_URL) && homeSrc() !== 'gen';   // chmura trzyma zmiany zestawu ręcznego — przy wygenerowanym wyłączona
 const cloudNorm = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const cloudFmt = c => (c.match(/.{1,4}/g) || []).join('-');
 function cloudCode() { try { return cloudNorm(localStorage.getItem(CLOUD_KEY)); } catch (e) { return ''; } }

@@ -71,7 +71,14 @@ node tools/generate-areas.js                # strefy + nazwy dzielnic + punkty z
 node tools/generate-areas.js --offline      # same strefy, bez punktów (cele wtedy z ulic OSM jak dotąd)
 node tools/generate-areas.js --rings 3 --spacing 3200 --points 45
 ```
-Potem wrzuć zmieniony `js/data/areas.generated.js` do repo. Odblokowanie (config.js → `AREA_UNLOCK`): liczba udanych misji + opłata ₵ + odblokowany sąsiad; po zapłacie pierwsza udana misja w strefie kończy odblokowanie.
+Potem wrzuć zmieniony `js/data/areas.generated.js` do repo (po zmianie parametrów skasuj `tools/.areas-cache.json`, inaczej skrypt użyje zapamiętanych stref). Skrypt odświeża też `tools/areas-preview.html` — samodzielną mapę do wrzucenia na stronę.
+
+**Teren startowy (Leszczyny) też można wygenerować na nowo:**
+```
+node tools/generate-areas.js --home                    # nowe punkty w obecnej granicy
+node tools/generate-areas.js --home --home-radius 1500 # + nowa granica (nieregularne koło, promień w m, środek = AREA.center)
+```
+Wynik trafia do `js/data/home.generated.js` (`HOME_GEN`); ręczne dane z `area.js` zostają nietknięte. W grze: TERENY → teren startowy → przycisk przełączający zestaw ręczny / wygenerowany (gra się przeładuje). Dla zestawu wygenerowanego edytor punktów ma osobny zapis, a chmura Firebase jest wyłączona (trzyma tylko zmiany zestawu ręcznego). Odblokowanie (config.js → `AREA_UNLOCK`): liczba udanych misji + opłata ₵ + odblokowany sąsiad; po zapłacie pierwsza udana misja w strefie kończy odblokowanie.
 Misja w zablokowanej strefie (GPS) jest odrzucana; w trybie symulacji strefę wybierasz na ekranie TERENY.
 
 ## Jak zmienić punkty i trasy

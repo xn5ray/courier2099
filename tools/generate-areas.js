@@ -6,6 +6,10 @@
  *   node tools/generate-areas.js --offline        → same strefy, bez punktów (szybki test)
  *   node tools/generate-areas.js --rings 3 --spacing 3200 --points 45
  *
+ *   --home                   dodatkowo przegeneruj punkty TERENU STARTOWEGO (Leszczyny) z OSM → js/data/home.generated.js
+ *   --home-radius 1500       …i przy okazji NOWA granica startu (nieregularne koło o tym promieniu w m, środek = AREA.center)
+ *   (w grze: TERENY → teren startowy → przełącznik „zestaw ręczny / wygenerowany”)
+ *
  * Wynik: js/data/areas.generated.js (const GEN_AREAS). Gra czyta go sama — nic więcej nie trzeba ruszać.
  * Środek siatki = AREA.center z js/data/area.js (to jest „teren startowy”). Kolejne strefy układają się wokół niego
  * jak plaster miodu (lekko nieregularne, jak dzielnice), a nazwy bierze z OSM (np. „Zatorze”, „Szobiszowice”).
@@ -14,7 +18,7 @@ const fs = require('fs'), path = require('path'), vm = require('vm');
 
 /* ---------- argumenty ---------- */
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i < 0 ? d : (process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : true); };
-const RINGS = +arg('rings', 2), SPACING = +arg('spacing', 3200), MAXPTS = +arg('points', 45), OFFLINE = !!arg('offline', false), SEED = +arg('seed', 2099);
+const RINGS = +arg('rings', 2), SPACING = +arg('spacing', 3200), MAXPTS = +arg('points', 45), OFFLINE = !!arg('offline', false), HOME = !!arg('home', false), HOME_R = +arg('home-radius', 0), SEED = +arg('seed', 2099);
 const ROOT = path.join(__dirname, '..'), OUT = path.join(ROOT, 'js/data/areas.generated.js');
 
 /* ---------- środek siatki z area.js ---------- */
@@ -106,7 +110,7 @@ async function fillArea(a) {
   /* nazwa: najbliższa dzielnica od środka strefy */
   const places = j.elements.filter(e => e.type === 'node' && e.tags && e.tags.name).sort((p, q) => hav(a.center, { lat: p.lat, lng: p.lon }) - hav(a.center, { lat: q.lat, lng: q.lon }));
   const used = areas.filter(x => x.named).map(x => x.name);
-  const pl = places.find(p => !used.includes(p.tags.name.toUpperCase()));
+  const pl = a.isHome ? null : places.find(p => !used.includes(p.tags.name.toUpperCase()));
   if (pl) { a.name = pl.tags.name.toUpperCase(); a.named = true; }
   /* punkty: co ~140 m wzdłuż nazwanych ulic, tylko wewnątrz strefy, min. 130 m od siebie */
   const cand = [];
@@ -125,7 +129,7 @@ async function fillArea(a) {
   for (const c of inside) { if (pick.length >= MAXPTS) break; if (pick.every(p => hav(p, c) >= 130)) pick.push(c); }
   a.points = pick;
 }
-const CACHE = path.join(__dirname, '.areas-cache.json'), CKEY = [RINGS, SPACING, MAXPTS, SEED, C.lat, C.lng].join('|');
+const CACHE = path.join(__dirname, '.areas-cache.json'), CKEY = [RINGS, SPACING, MAXPTS, SEED, C.lat, C.lng, HOME_R].join('|');
 let cache = {}; try { const c = JSON.parse(fs.readFileSync(CACHE, 'utf8')); if (c.key === CKEY) cache = c.zones; } catch (e) {}
 const saveCache = () => fs.writeFileSync(CACHE, JSON.stringify({ key: CKEY, zones: cache }));
 (async () => {
@@ -136,6 +140,21 @@ const saveCache = () => fs.writeFileSync(CACHE, JSON.stringify({ key: CKEY, zone
     if (cache[a.id]) { a.name = cache[a.id].name; a.named = cache[a.id].named; a.points = cache[a.id].points; console.log(`${a.name} · ${a.points.length} pkt (z pamięci)`); continue; }
     try { await fillArea(a); cache[a.id] = { name: a.name, named: a.named, points: a.points }; saveCache(); console.log(`${a.name} · ${a.points.length} pkt`); } catch (e) { console.log('BŁĄD: ' + e.message); failed++; }
     await new Promise(r => setTimeout(r, 1200));
+  }
+  if (HOME) {   /* teren startowy: nowe punkty (i opcjonalnie nowa granica) */
+    const hp = HOME_R ? Array.from({ length: 28 }, (_, i) => { const R = HOME_R * (0.92 + 0.16 * rand()), t = i / 28 * 2 * Math.PI; return [r6(C.lat + R * Math.cos(t) / KY), r6(C.lng + R * Math.sin(t) / KX)]; }) : AREA.poly;
+    if (HOME_R && HOME_R > SPACING * 0.55) console.log(`UWAGA: promień ${HOME_R} m jest duży przy rozstawie ${SPACING} m — strefy sąsiednie będą nachodzić na start.`);
+    const h = { isHome: true, name: AREA.name, center: C, poly: hp, xy: hp.map(q => toXY({ lat: q[0], lng: q[1] })), points: [] };
+    process.stdout.write('  teren startowy … ');
+    if (!OFFLINE) {
+      if (cache.home) { h.points = cache.home.points; console.log(h.points.length + ' pkt (z pamięci)'); }
+      else try { await fillArea(h); cache.home = { points: h.points }; saveCache(); console.log(h.points.length + ' pkt'); } catch (e) { console.log('BŁĄD: ' + e.message); failed++; }
+    } else console.log('pominięto (--offline)');
+    if (h.points.length) {
+      fs.writeFileSync(path.join(ROOT, 'js/data/home.generated.js'), "'use strict';\n/* WYGENEROWANE przez tools/generate-areas.js --home — zestaw punktów (i granica) terenu startowego do wyboru w grze (TERENY). */\nconst HOME_GEN = "
+        + JSON.stringify({ poly: HOME_R ? hp : null, points: h.points }) + ';\n');
+      console.log('Zapisano js/data/home.generated.js');
+    }
   }
   if (failed) console.log(`\nUWAGA: ${failed} stref bez punktów (serwer OSM nie odpowiedział). Uruchom skrypt jeszcze raz — dociągnie tylko brakujące.`);
   /* unikalne nazwy (gdy OSM nie podał dzielnicy, zostaje „SEKTOR KIERUNEK” — dopisz numer przy powtórkach) */

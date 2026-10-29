@@ -3,6 +3,10 @@
    Odblokowanie: liczba udanych misji + opłata ₵ + odblokowany sąsiad → stan 'paid' → pierwsza udana misja w strefie → 'done'.
    Stan w save.areas { id: 'paid' | 'done' }, licznik udanych misji w save.areaN. Ładowany po core.js. */
 
+/* Zestaw terenu startowego: 'manual' (area.js + edytor) albo 'gen' (home.generated.js). Zmiana wymaga przeładowania — AREA jest czytany przy starcie (editor.js). */
+const HOME_SRC_KEY = 'courier2099.homesrc.v1';
+const homeSrc = () => { try { return localStorage.getItem(HOME_SRC_KEY) === 'gen' && typeof HOME_GEN !== 'undefined' && HOME_GEN ? 'gen' : 'manual'; } catch (e) { return 'manual'; } };
+if (homeSrc() === 'gen') { AREA.points = HOME_GEN.points.map(p => ({ s: p.s, lat: p.lat, lng: p.lng })); if (HOME_GEN.poly) AREA.poly = HOME_GEN.poly; }
 const ALL_AREAS = [{ id: 'home', name: AREA.name, ring: 0, center: AREA.center, poly: AREA.poly, nb: [] }]
   .concat(typeof GEN_AREAS !== 'undefined' ? GEN_AREAS : []);
 let curAreaId = 'home';   // strefa bieżącej / ostatnio startowanej misji
@@ -83,6 +87,12 @@ function arInfo() {
   if (s !== 'locked' && save.sim) {
     const b = document.createElement('button'); b.className = 'btn small pink'; b.textContent = save.areaSel === a.id ? 'WYBRANY DO SYMULACJI ✔' : 'WYBIERZ DO SYMULACJI';
     b.disabled = save.areaSel === a.id; b.onclick = () => { save.areaSel = a.id; persist(); sfx('ok'); arInfo(); };
+    box.appendChild(b);
+  }
+  if (a.id === 'home' && typeof HOME_GEN !== 'undefined' && HOME_GEN) {
+    const b = document.createElement('button'); b.className = 'btn small'; const g = homeSrc() === 'gen';
+    b.textContent = g ? 'ZESTAW: WYGENEROWANY → przełącz na ręczny' : 'ZESTAW: RĘCZNY → przełącz na wygenerowany';
+    b.onclick = () => { if (!confirm('Przełączyć zestaw terenu startowego? Gra się przeładuje.')) return; try { localStorage.setItem(HOME_SRC_KEY, g ? 'manual' : 'gen'); } catch (e) {} location.reload(); };
     box.appendChild(b);
   }
   info.innerHTML = h + (s !== 'locked' && !save.sim ? '<br><span style="color:var(--dim)">Misja startuje tam, gdzie stoisz — wejdź w ten teren z GPS.</span>' : '');

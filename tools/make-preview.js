@@ -9,6 +9,8 @@ const ROOT = path.join(__dirname, '..'), OUT = path.join(__dirname, 'areas-previ
 const ev = (f, name) => vm.runInNewContext(fs.readFileSync(path.join(ROOT, f), 'utf8') + '\n;' + name);
 const AREA = ev('js/data/area.js', 'AREA');
 const GEN = fs.existsSync(path.join(ROOT, 'js/data/areas.generated.js')) ? ev('js/data/areas.generated.js', 'GEN_AREAS') : [];
+const HG = fs.existsSync(path.join(ROOT, 'js/data/home.generated.js')) ? ev('js/data/home.generated.js', 'HOME_GEN') : null;
+if (HG) { AREA.points = HG.points; if (HG.poly) AREA.poly = HG.poly; }   // podgląd pokazuje zestaw wygenerowany, jeśli istnieje
 const data = { home: { name: AREA.name, poly: AREA.poly, center: AREA.center, points: AREA.points }, zones: GEN };
 const html = `<!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">

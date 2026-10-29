@@ -2,7 +2,7 @@
 /* EDYTOR PUNKTÓW: dodawanie / usuwanie / przesuwanie punktów gry na mapie (zapis w localStorage, nakładka na AREA). */
 
 /* ================= EDYTOR PUNKTÓW ================= */
-const PTS_KEY = 'courier2099.pts.v1';
+const PTS_KEY = 'courier2099.pts.v1' + (homeSrc() === 'gen' ? '.gen' : '');   // osobne zmiany dla zestawu wygenerowanego
 const DEF_PTS = AREA.points.map((p, i) => ({ s: p.s, lat: p.lat, lng: p.lng, id: i }));
 const DEF_FIX = FIXED_ROUTES.map(r => r.pts.map(q => ({ lat: q.lat, lng: q.lng })));
 let pe = { removed: [], moved: {}, added: [], fmoved: {} };
