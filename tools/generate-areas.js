@@ -76,16 +76,22 @@ for (const a of areas) {   // sąsiedzi (w tym 'home')
 console.log(`Strefy: ${areas.length} (pierścienie: ${RINGS}, rozstaw ${SPACING} m)`);
 
 /* ---------- OpenStreetMap (Overpass): nazwy dzielnic + punkty na ulicach ---------- */
-const MIRRORS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+const MIRRORS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.openstreetmap.fr/api/interpreter'];
+const HEAD = { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'courier2099-area-generator/1.0 (https://github.com/xn5ray/courier2099)', 'Accept': 'application/json' };
+let lastErr = '';
 async function overpass(q) {
-  for (let t = 0; t < 4; t++) for (const u of MIRRORS) {
-    try {
-      const r = await fetch(u, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: AbortSignal.timeout(60000) });
-      if (r.ok) return await r.json();
-    } catch (e) {}
-    await new Promise(r => setTimeout(r, 1500));
+  for (let t = 0; t < 4; t++) {
+    for (const u of MIRRORS) {
+      try {
+        const r = await fetch(u, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: HEAD, signal: AbortSignal.timeout(90000) });
+        if (r.ok) return await r.json();
+        lastErr = new URL(u).host + ' → HTTP ' + r.status + (r.status === 429 ? ' (za dużo zapytań — czekam)' : '');
+      } catch (e) { lastErr = new URL(u).host + ' → ' + (e.cause && (e.cause.code || e.cause.message) || e.message); }
+      if (arg('debug', false)) console.log('\n    ' + lastErr);
+    }
+    await new Promise(r => setTimeout(r, 4000 * (t + 1)));   // przerwa rośnie: 4 s, 8 s, 12 s…
   }
-  throw new Error('Overpass nie odpowiada (spróbuj za chwilę lub użyj --offline)');
+  throw new Error('Overpass nie odpowiada. Ostatni błąd: ' + lastErr);
 }
 const hav = (a, b) => { const x = (b.lng - a.lng) * Math.cos(a.lat * Math.PI / 180), y = b.lat - a.lat; return Math.hypot(x, y) * 111195; };
 const prefix = n => /^(Plac|Aleja|Park|Rondo|Skwer|Osiedle|Droga|Wiadukt|Most)\b/i.test(n) ? n : 'ul. ' + n;
@@ -117,6 +123,7 @@ async function fillArea(a) {
   a.points = pick;
 }
 (async () => {
+  if (!OFFLINE) try { await overpass('[out:json][timeout:10];node(1);out;'); console.log('Połączenie z OpenStreetMap działa.'); } catch (e) { console.log('\n' + e.message + '\nSprawdź internet/VPN/firewall albo uruchom z --offline.'); process.exit(1); }
   if (!OFFLINE) for (const a of areas) {
     process.stdout.write(`  ${a.id}/${areas.length} … `);
     try { await fillArea(a); console.log(`${a.name} · ${a.points.length} pkt`); } catch (e) { console.log('BŁĄD: ' + e.message); }
