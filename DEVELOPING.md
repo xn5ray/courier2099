@@ -71,6 +71,7 @@ node tools/generate-areas.js                # strefy + nazwy dzielnic + punkty z
 node tools/generate-areas.js --offline      # same strefy, bez punktów (cele wtedy z ulic OSM jak dotąd)
 node tools/generate-areas.js --rings 3 --spacing 3200 --points 45
 ```
+Kształt dzielnic: `--irregular 0` (równe plastry), `1` (domyślnie — nieregularne, różnej wielkości), `2` (bardzo poszarpane); `--seed N` losuje inny układ. Strefy przylegają do granicy terenu startowego.
 Potem wrzuć zmieniony `js/data/areas.generated.js` do repo (po zmianie parametrów skasuj `tools/.areas-cache.json`, inaczej skrypt użyje zapamiętanych stref). Skrypt odświeża też `tools/areas-preview.html` — samodzielną mapę do wrzucenia na stronę.
 
 **Teren startowy (Leszczyny) też można wygenerować na nowo:**
