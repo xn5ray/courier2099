@@ -14,6 +14,11 @@ async function startMission(quick, forcedV, slot) {
     else { $('#loading').hidden = true; releaseLock(); $('#menuHint').textContent = geoErrText(e); return; }
   }
   if (sim && dist(start, FIXED_BASE) > FIXED_BASE_RADIUS) start = { lat: FIXED_BASE.lat, lng: FIXED_BASE.lng, acc: 5 };
+  const sa = areaById(save.areaSel);
+  if (sim && sa.id !== 'home' && areaState(sa.id) !== 'locked') start = { lat: sa.center.lat, lng: sa.center.lng, acc: 5 };   // symulacja: start w wybranym terenie
+  const here = areaAt(start);
+  if (here && areaState(here.id) === 'locked') { $('#loading').hidden = true; releaseLock(); $('#menuHint').textContent = 'TEREN ZABLOKOWANY: ' + here.name + ' — odblokuj go w menu TERENY.'; return; }
+  curAreaId = here ? here.id : 'home';
   const bs = quick ? { lat: start.lat, lng: start.lng } : (dist(start, FIXED_BASE) <= FIXED_BASE_RADIUS ? { lat: FIXED_BASE.lat, lng: FIXED_BASE.lng } : start);   // baza misji
   let roadNodes = null, giveUp = false;
   const qv = quick ? ((forcedV && QUICK_MISSIONS[forcedV]) ? forcedV : pickQuickVariant()) : null;
@@ -34,6 +39,7 @@ async function startMission(quick, forcedV, slot) {
   $('#loading').hidden = true;
   if (typeof L === 'undefined') { $('#menuHint').textContent = 'Nie załadowano biblioteki mapy (Leaflet) — sprawdź internet.'; releaseLock(); return; }
   M = quick ? createQuick(bs, qv) : createMission(bs);
+  M.areaId = curAreaId;
   M.night = isNight();
   if (M.night) setTimeout(() => toast('<b>🌙 TRYB NOCNY:</b> +' + Math.round(NIGHT.bonus * 100) + '% ₵, ale więcej patroli i zagrożeń!', 'ev', 8000), 1500);
   if (quick && slot != null) { M.quick.slot = slot; boardTake(slot, M.startedAt); }   // zlecenie z tablicy
@@ -42,7 +48,7 @@ async function startMission(quick, forcedV, slot) {
   setPos(start.lat, start.lng, start.acc);
   saveMission();
   if (quick) toast('<b>SZYBKA MISJA: ' + QUICK_MISSIONS[qv].title + '</b> — ' + QUICK_MISSIONS[qv].intro + (!presetOn && !roadGrid ? ' <i>(cel bez weryfikacji dróg)</i>' : ''), 'good', 9000);
-  else if (presetOn) toast(fixedUsed ? '<b>TRASA: ' + fixedUsed + '</b> — stałe punkty, idź po kolei.' : '<b>PRESET: ' + AREA.name + '</b> — cele wybrane z gotowych punktów na ulicach.', 'good', 6000);
+  else if (presetOn) toast(fixedUsed ? '<b>TRASA: ' + fixedUsed + '</b> — stałe punkty, idź po kolei.' : '<b>PRESET: ' + areaById(curAreaId).name + '</b> — cele wybrane z gotowych punktów na ulicach.', 'good', 6000);
   else if (!roadGrid) toast('<b>Brak danych o ulicach</b> — cele wylosowane bez sprawdzania dróg. Oceń je na mapie przed wyjściem.', 'warn', 9000);
   toast(sim ? '<b>TRYB SYMULACJI:</b> dotknij mapy, aby się przenieść.' : '<b>MISJA ROZPOCZĘTA.</b> Idź do celu nr 1.', 'good', 6000);
   sfx('ok'); haptic(60);
@@ -50,7 +56,7 @@ async function startMission(quick, forcedV, slot) {
 function resumeMission() {
   const m = loadMissionSaved(); if (!m) { renderMenu(); return; }
   initAudio(); requestCompass(); lockScreen();
-  sim = save.sim; M = m; pos = sim ? { lat: M.base.lat, lng: M.base.lng, acc: 5 } : null;
+  sim = save.sim; M = m; curAreaId = areaById(m.areaId).id; pos = sim ? { lat: M.base.lat, lng: M.base.lng, acc: 5 } : null;
   beginUI(true);
   const b0 = { lat: M.base.lat, lng: M.base.lng };
   if (!M.preset && !M.quick) fetchRoads(b0).then(n => { roadGrid = n ? buildGrid(n, b0.lat) : null; });
@@ -115,6 +121,10 @@ function finish(kind) {
   if (m.rogue) { save.comps += m.rogue; lines.push(['Rogue Data Glitch: rzadki komponent', '+' + m.rogue + ' ◈']); }
   if (m.night && total > 0) { const nb = Math.round(total * NIGHT.bonus); lines.push(['🌙 Tryb nocny (+' + Math.round(NIGHT.bonus * 100) + '% ₵)', nb]); total += nb; }
   if (m.penalties) lines.push([`Kary czasowe (info)`, '−' + m.penalties + ' s']);
+  if (kind === 'success') {
+    const ai = areaById(m.areaId).id; save.areaN[ai] = (save.areaN[ai] || 0) + 1;
+    if (save.areas[ai] === 'paid') { save.areas[ai] = 'done'; lines.push(['🗺 TEREN ODBLOKOWANY: ' + areaById(ai).name, '✔']); }
+  }
   save.credits += total; if (kind === 'success') save.missions++; save.best = Math.max(save.best, total); persist();
   $('#resTitle').textContent = title;
   $('#resTitle').style.color = kind === 'success' ? 'var(--green)' : 'var(--red)';
@@ -144,7 +154,7 @@ function onBlocked() {
   if (!M || mgActive || M.idx >= M.targets.length) return;
   if (!confirm('Cel niedostępny? Zostanie zastąpiony innym punktem. Jeśli to punkt z listy, trafi na stałą czarną listę (przywrócisz go w EDYTORZE).')) return;
   const t = M.targets[M.idx];
-  const hit = AREA.points.find(q => dist(q, t) < 3);
+  const hit = areaPts().find(q => dist(q, t) < 3);
   if (hit) {
     if (typeof hit.id === 'string') pe.added = pe.added.filter(a => a.id !== hit.id);
     else if (!pe.removed.includes(hit.id)) pe.removed.push(hit.id);
@@ -152,7 +162,7 @@ function onBlocked() {
   }
   let rep = null;
   if (M.preset) {
-    rep = AREA.points.filter(q => !M.targets.some(o => dist(q, o) < 60) && dist(q, t) > 60 && dist(q, M.base) >= 150)
+    rep = areaPts().filter(q => !M.targets.some(o => dist(q, o) < 60) && dist(q, t) > 60 && dist(q, M.base) >= 150)
       .sort((a, b) => dist(a, t) - dist(b, t))[0] || null;
   }
   if (!rep) { const p = offset(t, rand(120, 260), Math.random() * 360); rep = snap(p, 250) || p; }

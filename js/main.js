@@ -31,6 +31,8 @@ $('#btnAbort').onclick = () => { if (confirm('Przerwać misję? Dostaniesz tylko
 $('#btnCenter').onclick = () => { follow = true; if (pos && map) map.setView([pos.lat, pos.lng], Math.max(map.getZoom(), 17)); };
 $('#btnFit').onclick = () => { follow = false; fitAll(); };
 $('#btnEditor').onclick = openEditor;
+$('#btnAreas').onclick = openAreas;
+$('#arBack').onclick = closeAreas;
 $('#edBack').onclick = closeEditor;
 $('#btnBlocked').onclick = onBlocked;
 $('#resOk').onclick = () => { $('#result').hidden = true; renderMenu(); show('menu'); };
@@ -43,6 +45,7 @@ $('#resOk').onclick = () => { $('#result').hidden = true; renderMenu(); show('me
     if (!$('#mg').hidden) { cancelMinigame(); return; }
     if (!$('#cloud').hidden) { closeCloud(); return; }
     if (!$('#qdlg').hidden) return;
+    if ($('#areas').classList.contains('active')) { closeAreas(); return; }
     if ($('#editor').classList.contains('active')) { closeEditor(); return; }
     if (M) { toast('Misja trwa — użyj ✕ aby ją przerwać.', 'warn', 2500); return; }
     if ($('#board').classList.contains('active')) { renderMenu(); show('menu'); return; }

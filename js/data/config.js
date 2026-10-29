@@ -9,7 +9,7 @@ const CLOUD_URL = 'https://cybercourier-6d659-default-rtdb.europe-west1.firebase
 const REWARD_TARGET = 100, REWARD_RELAY = 150, REWARD_COMPLETE = 200;
 const PATROL_PENALTY = 60, MG_PENALTY = 5, FIX_COST = 50;
 const DEF = { credits: 0, missions: 0, best: 0, sound: true, haptic: true, sim: false, up: { boots: 0, decrypt: 0, battery: 0 },
-  scrap: 0, cool: 0, comps: 0, nodeT: 0, qboard: null, imp: {},
+  scrap: 0, cool: 0, comps: 0, nodeT: 0, qboard: null, imp: {}, areas: {}, areaN: {}, areaSel: 'home',
   safe: ['lock', null, null, 'lock', null, 'core', null, null, null, null, null, null, 'lock', null, null, 'lock'] };   // siatka 4x4: 'lock' | null (puste) | 'core' | id modułu
 /* Moduły Kryjówki. cost = [₵, złom, chłodziwo], w = pobór mocy (W), pw = produkcja mocy (W) */
 const MODS = {
@@ -21,6 +21,9 @@ const MODS = {
   charge: { name: 'STACJA ŁADOWANIA', ic: '🔋', w: 15, cost: [180, 15, 5], desc: '+5 min czasu misji na moduł (działają maks. 2 moduły = +10 min, jak dawna Bateria GPS).' }
 };
 /* TRYB NOCNY (#15): od godziny `from` do `to` (czas w telefonie) — bonus do ₵, ale częstsze zagrożenia. */
+/* OBSZARY (js/data/areas.generated.js, tworzy je tools/generate-areas.js). Odblokowanie = liczba udanych misji + opłata w ₵ + pierwsza udana misja w tym terenie.
+   missions/cost: wartość dla pierścienia 1, 2, 3… (od terenu startowego); stepM/stepC: dopłata za każdy już odblokowany obszar. Wymagany też odblokowany sąsiad. */
+const AREA_UNLOCK = { missions: [3, 8, 15], cost: [300, 800, 1500], stepM: 1, stepC: 100 };
 const NIGHT = { from: 21, to: 4, bonus: 0.3 };
 /* WSZCZEPY (#18, drzewko): req = wszczep, który trzeba mieć wcześniej. cost = [₵, złom, chłodziwo]. Efekty są w kodzie (grep: save.imp.<id>). */
 const IMPLANTS = {

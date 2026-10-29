@@ -4,7 +4,7 @@
 /* SZYBKA MISJA: logika trybu (1 cel). Wszystkie warianty opisują dane w data/quick-missions.js — tu nie trzeba nic zmieniać, by dodać nowy. */
 
 const pickQuickVariant = () => { const k = Object.keys(QUICK_MISSIONS); return k[Math.floor(Math.random() * k.length)]; };
-const quickPts = (base, v) => { const [a, b] = QUICK_MISSIONS[v].dist; return AREA.points.filter(q => { const d = dist(base, q); return d >= a && d <= b; }); };
+const quickPts = (base, v) => { const [a, b] = QUICK_MISSIONS[v].dist; return areaPts().filter(q => { const d = dist(base, q); return d >= a && d <= b; }); };
 const quickHasPts = (base, v) => quickPts(base, v).length > 0;
 
 function genQuickTarget(base, v) {

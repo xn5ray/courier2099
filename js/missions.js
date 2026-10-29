@@ -5,6 +5,7 @@ let fixedUsed = null;
 function genFixedTargets(base) {
   const LK = 'c2099_lastfixed', setLast = v => { try { localStorage.setItem(LK, v); } catch (e) {} };
   let last = null; try { last = localStorage.getItem(LK); } catch (e) {}
+  if (curAreaId !== 'home') return null;   // stałe trasy tylko na terenie startowym
   const ok = FIXED_ROUTES.filter(r => routeLen(base, r.pts) <= FIXED_ROUTE_MAX);
   if (last === '1' || !ok.length || Math.random() >= FIXED_ROUTE_CHANCE) { setLast('0'); return null; }
   setLast('1');
@@ -22,8 +23,8 @@ function inPoly(p, poly) {
   return ins;
 }
 function usePreset(base) {
-  if (!inPoly(base, AREA.poly) && !AREA.points.some(p => dist(base, p) < 600)) return false;
-  return AREA.points.filter(p => { const d = dist(base, p); return d >= 300 && d <= 2600; }).length >= 4;
+  if (!inPoly(base, areaById(curAreaId).poly) && !areaPts().some(p => dist(base, p) < 600)) return false;
+  return areaPts().filter(p => { const d = dist(base, p); return d >= 300 && d <= 2600; }).length >= 4;
 }
 function permutations(arr) {
   if (arr.length <= 1) return [arr];
@@ -47,7 +48,7 @@ function genPresetTargets(base) {
   const ranges = [[500, 2000], [400, 2200], [300, 2600], [200, 3200]];
   for (let rel = 0; rel < ranges.length; rel++) {
     const [lo, hi] = ranges[rel];
-    const pool = AREA.points.filter(p => { const d = dist(base, p); return d >= lo && d <= hi; });
+    const pool = areaPts().filter(p => { const d = dist(base, p); return d >= lo && d <= hi; });
     if (pool.length < n) continue;
     for (let a = 0; a < 300; a++) {
       const pick = shuffle(pool.slice()).slice(0, n);

@@ -6,6 +6,9 @@
 index.html                    sam układ ekranów (HTML) + lista skryptów
 css/style.css                 cały wygląd (neony, czcionki, ekrany)
 js/data/config.js             USTAWIENIA: nagrody, kary, czas misji, BUDYNKI KRYJÓWKI (MODS), nazwy punktów
+js/data/areas.generated.js    WYGENEROWANE OBSZARY (nie edytuj ręcznie — tworzy je tools/generate-areas.js)
+js/areas.js                   odblokowywanie obszarów i ekran TERENY (mapa stref)
+tools/generate-areas.js       generator obszarów (Node 18+, uruchamiasz na komputerze)
 js/data/area.js               TEREN: obszar gry, lista punktów, stałe trasy, stała baza
 js/data/quick-missions.js     SZYBKIE MISJE: wszystkie warianty + rozmowy z informatorem
 js/core.js                    narzędzia, most do Androida, zapis gry, dźwięk, GPS, kompas
@@ -58,6 +61,18 @@ Przykład: w `js/core.js` funkcja `radius()` dodaje `eff('bench') * 7` m do prom
    (wzoruj się na `overload.js`; `c.done()` = wygrana, `c.fail()` / `c.timeout()` = porażka, `c.lvl` = poziom trudności 0–3).
 2. Dopisz `<script src="js/minigames/mojagra.js"></script>` w `index.html` przed `js/main.js`.
 3. Gra rejestruje się sama; pojawi się w losowaniu minigier i możesz jej użyć w `steps` szybkiej misji.
+
+## Obszary (odblokowywane strefy)
+
+Teren startowy to `AREA` z `js/data/area.js`. Wokół niego gra ma strefy z `js/data/areas.generated.js` — tworzy je skrypt, uruchamiany na komputerze:
+
+```
+node tools/generate-areas.js                # strefy + nazwy dzielnic + punkty z OpenStreetMap (internet)
+node tools/generate-areas.js --offline      # same strefy, bez punktów (cele wtedy z ulic OSM jak dotąd)
+node tools/generate-areas.js --rings 3 --spacing 3200 --points 45
+```
+Potem wrzuć zmieniony `js/data/areas.generated.js` do repo. Odblokowanie (config.js → `AREA_UNLOCK`): liczba udanych misji + opłata ₵ + odblokowany sąsiad; po zapłacie pierwsza udana misja w strefie kończy odblokowanie.
+Misja w zablokowanej strefie (GPS) jest odrzucana; w trybie symulacji strefę wybierasz na ekranie TERENY.
 
 ## Jak zmienić punkty i trasy
 

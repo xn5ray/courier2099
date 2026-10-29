@@ -31,6 +31,7 @@
       <button class="btn big" id="btnStart">▶ START MISJI</button>
       <button class="btn big pink" id="btnQuick">▶ TABLICA ZLECEŃ (SZYBKIE MISJE)</button>
       <button class="btn pink" id="btnResume" hidden>⟲ WZNÓW MISJĘ</button>
+      <button class="btn" id="btnAreas">🗺 TERENY · ODBLOKOWANIE OBSZARÓW</button>
       <button class="btn" id="btnShop">⛁ KRYJÓWKA · THE SAFEHOUSE</button>
       <button class="btn" id="btnEditor">✎ EDYTOR PUNKTÓW</button>
       <button class="btn small pink" id="btnResetCred">✖ ZRESETUJ KASĘ (₵)</button>
@@ -73,6 +74,19 @@
       <div id="bdList"></div>
       <div class="si-desc" id="bdNote"></div>
       <button class="btn" id="btnBoardBack">◀ POWRÓT</button>
+    </div>
+  </section>
+
+  <!-- ================= AREAS ================= -->
+  <section id="areas" class="screen">
+    <div id="arMap"></div>
+    <div class="hud top">
+      <div class="cell"><span>TERENY · ODBLOKOWANE</span><b id="arCount">1</b></div>
+      <div class="cell"><span>KREDYTY</span><b id="arCred">0</b></div>
+      <button class="abort" id="arBack" style="border-color:var(--cyan);color:var(--cyan)">◀</button>
+    </div>
+    <div class="hud bottom">
+      <div class="panel-b"><div id="arInfo"></div><div id="arBtns"></div></div>
     </div>
   </section>
 
@@ -167,8 +181,10 @@
 <script src="vendor/leaflet.js"></script>
 <script src="js/data/config.js"></script>
 <script src="js/data/area.js"></script>
+<script src="js/data/areas.generated.js"></script>
 <script src="js/data/quick-missions.js"></script>
 <script src="js/core.js"></script>
+<script src="js/areas.js"></script>
 <script src="js/safehouse.js"></script>
 <script src="js/missions.js"></script>
 <script src="js/editor.js"></script>

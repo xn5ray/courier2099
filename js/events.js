@@ -18,7 +18,7 @@ function spawnEvent(force) {
   } else if (type === 'relay') {
     let p = offset(pos, rand(200, 350), Math.random() * 360);
     const sp = snap(p, 200); if (sp) p = sp;
-    if (M.preset) { const cs = AREA.points.filter(q => { const d = dist(pos, q); return d >= 150 && d <= 450; }); if (cs.length) p = cs[Math.floor(Math.random() * cs.length)]; }
+    if (M.preset) { const cs = areaPts().filter(q => { const d = dist(pos, q); return d >= 150 && d <= 450; }); if (cs.length) p = cs[Math.floor(Math.random() * cs.length)]; }
     M.event = { type: 'relay', lat: p.lat, lng: p.lng, endsAt: now + 300000 };
     toast(`<b>SZYBKI PRZEKAZ:</b> masz 5 minut na dotarcie do punktu bonusowego (+${REWARD_RELAY} ₵)!`, 'ev', 9000);
     sfx('alert'); haptic([120, 60, 120]);
@@ -30,7 +30,7 @@ function spawnEvent(force) {
 function spawnNew(type, now, dg) {
   const g = goal(), ev = { type, endsAt: now + 300000 };
   const spot = (a, b) => { let p = offset(pos, rand(a, b), Math.random() * 360); const sp = snap(p, 200); if (sp) p = sp;
-    if (M.preset) { const cs = AREA.points.filter(q => { const d = dist(pos, q); return d >= a * 0.8 && d <= b * 1.4; }); if (cs.length) p = cs[Math.floor(Math.random() * cs.length)]; } return p; };
+    if (M.preset) { const cs = areaPts().filter(q => { const d = dist(pos, q); return d >= a * 0.8 && d <= b * 1.4; }); if (cs.length) p = cs[Math.floor(Math.random() * cs.length)]; } return p; };
   let msg, kind = 'ev';
   if (type === 'quiet') { const p = offset(pos, Math.min(130, dg * 0.4), bearing(pos, g)); Object.assign(ev, { lat: p.lat, lng: p.lng, r: 60, det: 0, endsAt: now + 180000 }); kind = 'bad'; msg = '<b>CICHY KROK:</b> strefa czujników drgań! W środku idź wolno (&lt;3 km/h) albo ją obejdź.'; }
   else if (type === 'jam') { ev.endsAt = now + 180000; kind = 'bad'; msg = '<b>ZAGŁUSZACZ SYGNAŁU:</b> mapa i trasa wyłączone na 3 min. Kieruj się kompasem i dystansem!'; }

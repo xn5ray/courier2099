@@ -22,7 +22,7 @@ function renderMap() {
   });
   if (M.preset) {
     L.polygon(AREA.poly, { color: '#ff2bd6', weight: 2, dashArray: '10 6', fill: false, interactive: false }).addTo(gMarks);
-    if (sim || eff('intel')) AREA.points.filter(q => sim || dist(q, M.base) < 700).forEach(q => L.circleMarker([q.lat, q.lng], { radius: 4, color: '#fcee0a', weight: 1, fillOpacity: 0.8, interactive: false }).addTo(gMarks));
+    if (sim || eff('intel')) areaPts().filter(q => sim || dist(q, M.base) < 700).forEach(q => L.circleMarker([q.lat, q.lng], { radius: 4, color: '#fcee0a', weight: 1, fillOpacity: 0.8, interactive: false }).addTo(gMarks));
   }
   const g = goal();
   L.circle([g.lat, g.lng], { radius: radius(), color: '#00f0ff', weight: 1, dashArray: '4 4', fillColor: '#00f0ff', fillOpacity: 0.12, interactive: false }).addTo(gMarks);
