@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Courier 2099 · Generator obszarów</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--bg:#05060a;--pn:#0b0e16;--cy:#00f0ff;--gr:#39ff88;--mg:#ff2bd6;--ye:#fcee0a;--tx:#9fb3d1}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;padding:12px;max-width:980px;margin:0 auto}
+h1{color:var(--cy);font-size:16px;letter-spacing:2px;margin:4px 0 2px}
+.sub{opacity:.7;margin-bottom:10px}
+.pn{background:var(--pn);border:1px solid #1d2a3d;padding:10px;margin-bottom:10px}
+.pn h2{margin:0 0 8px;font-size:12px;color:var(--gr);letter-spacing:1px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+label{display:block;font-size:11px;color:var(--tx)}
+input,select{width:100%;background:#05060a;border:1px solid #28405e;color:var(--cy);padding:7px;font:inherit;margin-top:2px}
+input[type=checkbox]{width:auto;margin-right:6px}
+.chk{display:flex;align-items:center;margin-top:18px}
+button{background:#05060a;border:1px solid var(--cy);color:var(--cy);padding:10px 12px;font:700 12px ui-monospace,monospace;cursor:pointer;letter-spacing:1px}
+button:active{background:var(--cy);color:#000}
+button.g{border-color:var(--gr);color:var(--gr)}button.m{border-color:var(--mg);color:var(--mg)}
+button:disabled{opacity:.35;pointer-events:none}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+#log{height:150px;overflow:auto;background:#020308;border:1px solid #1d2a3d;padding:6px;white-space:pre-wrap;font-size:12px}
+#bar{height:6px;background:#111b2b;margin-top:8px}#bar i{display:block;height:100%;width:0;background:var(--gr);transition:width .3s}
+#map{height:60vh;min-height:320px;border:1px solid #1d2a3d}
+.dark-tiles{filter:invert(1) hue-rotate(185deg) saturate(.7) brightness(.85) contrast(.95)}
+.tip{background:rgba(5,6,10,.78);border:1px solid #00f0ff;color:#00f0ff;font:700 11px ui-monospace,Menlo,monospace;padding:1px 6px;box-shadow:none}
+.tip:before{display:none}.tip.home{border-color:#39ff88;color:#39ff88}
+.hint{font-size:11px;opacity:.7;margin-top:6px}
+</style></head><body>
+<h1>COURIER 2099 · GENERATOR OBSZARÓW</h1>
+<div class="sub">To samo co <b>tools/generate-areas.js</b>, tylko w przeglądarce. Wynik pobierasz jako pliki i wrzucasz do <b>js/data/</b>.</div>
+
+<div class="pn"><h2>1 · TEREN STARTOWY (środek siatki)</h2>
+  <div class="grid">
+    <label>Nazwa<input id="aName"></label>
+    <label>Środek – lat<input id="aLat" type="number" step="any"></label>
+    <label>Środek – lng<input id="aLng" type="number" step="any"></label>
+  </div>
+  <div class="row"><button id="bLoad">WCZYTAJ js/data/area.js…</button><span id="aInfo" class="hint" style="align-self:center"></span></div>
+  <input type="file" id="fArea" accept=".js,text/javascript" hidden>
+  <div class="hint">Domyślnie wbudowane są Leszczyny (z Twojego area.js). Jeśli zmieniasz teren w area.js — wczytaj ten plik, generator weźmie z niego środek i granicę.</div>
+</div>
+
+<div class="pn"><h2>2 · PARAMETRY</h2>
+  <div class="grid">
+    <label>Pierścienie (--rings)<input id="pRings" type="number" min="1" max="6" value="2"></label>
+    <label>Rozstaw m (--spacing)<input id="pSpacing" type="number" min="500" step="100" value="3200"></label>
+    <label>Max punktów na strefę (--points)<input id="pPoints" type="number" min="1" value="45"></label>
+    <label>Nieregularność (--irregular)<select id="pIrr"><option value="0">0 – równe plastry</option><option value="1" selected>1 – nieregularne</option><option value="2">2 – poszarpane</option></select></label>
+    <label>Seed (--seed)<input id="pSeed" type="number" value="2099"></label>
+    <label>Nowa granica startu, promień m (--home-radius, 0 = bez)<input id="pHomeR" type="number" min="0" value="0"></label>
+    <label class="chk"><input id="pHome" type="checkbox">też punkty terenu startowego (--home)</label>
+  </div>
+</div>
+
+<div class="pn"><h2>3 · GENERUJ</h2>
+  <div class="row">
+    <button id="bZones" class="g">① GENERUJ STREFY (offline)</button>
+    <button id="bOsm" class="m" disabled>② POBIERZ NAZWY I PUNKTY Z OSM</button>
+    <button id="bStop" disabled>■ STOP</button>
+  </div>
+  <div id="bar"><i></i></div>
+  <div id="log" style="margin-top:8px"></div>
+  <div class="hint">Krok ② pyta serwery Overpass strefa po strefie (to trwa kilka minut). Ukończone strefy zapamiętuję w przeglądarce — jak coś padnie, kliknij ② jeszcze raz, dociągnie tylko brakujące. Zmiana parametrów = nowy zestaw stref.</div>
+</div>
+
+<div class="pn"><h2>4 · POBIERZ WYNIK</h2>
+  <div class="row">
+    <button id="dAreas" class="g" disabled>⬇ areas.generated.js</button>
+    <button id="dHome" class="g" disabled>⬇ home.generated.js</button>
+    <button id="bClear">WYCZYŚĆ PAMIĘĆ OSM</button>
+  </div>
+  <div class="hint">Pliki wrzuć do <b>js/data/</b> w repo (nadpisz stare) i zrób commit — workflow zbuduje APK.</div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+'use strict';
+/* =====================  RDZEŃ (to samo co w tools/generate-areas.js)  ===================== */
+// ==CORE==
+const DEFAULT_AREA = {"name":"LESZCZYNY","center":{"lat":50.141955,"lng":18.637321},"poly":[[50.155622,18.655689],[50.15488,18.659122],[50.15378,18.661912],[50.152405,18.663113],[50.150893,18.662985],[50.149518,18.661697],[50.148143,18.661096],[50.146493,18.661182],[50.144843,18.662212],[50.143192,18.663328],[50.141542,18.6635],[50.140029,18.662641],[50.138242,18.660624],[50.136179,18.658479],[50.134116,18.656118],[50.132878,18.652685],[50.13219,18.647964],[50.13186,18.642385],[50.13186,18.637236],[50.13219,18.632944],[50.13274,18.628652],[50.133428,18.624361],[50.134528,18.621357],[50.135766,18.61964],[50.137416,18.618696],[50.139067,18.618439],[50.140992,18.618996],[50.142642,18.620499],[50.14388,18.622644],[50.144843,18.625219],[50.145805,18.627794],[50.146768,18.629082],[50.148143,18.629511],[50.149793,18.631227],[50.15103,18.633373],[50.152405,18.635948],[50.153505,18.639381],[50.154467,18.643244],[50.155155,18.647535],[50.155567,18.651827]]};
+function rng(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const r6 = v => Math.round(v * 1e6) / 1e6, r5 = v => Math.round(v * 1e5) / 1e5;
+const hav = (a, b) => { const x = (b.lng - a.lng) * Math.cos(a.lat * Math.PI / 180), y = b.lat - a.lat; return Math.hypot(x, y) * 111195; };
+const prefix = n => /^(Plac|Aleja|Park|Rondo|Skwer|Osiedle|Droga|Wiadukt|Most)\b/i.test(n) ? n : 'ul. ' + n;
+function inPoly(p, poly) {
+  let ins = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++)
+    if ((poly[i].y > p.y) !== (poly[j].y > p.y) && p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x) ins = !ins;
+  return ins;
+}
+function nearestOnPoly(p, poly) {
+  let best = null, bd = 1e18;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length], dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+    const q = { x: a.x + dx * t, y: a.y + dy * t }, d = Math.hypot(p.x - q.x, p.y - q.y);
+    if (d < bd) { bd = d; best = q; }
+  }
+  return { q: best, d: bd };
+}
+function clip(poly, nx, ny, c) {
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length], da = nx * a.x + ny * a.y - c, db = nx * b.x + ny * b.y - c;
+    if (da <= 0) out.push(a);
+    if ((da < 0 && db > 0) || (da > 0 && db < 0)) { const t = da / (da - db); out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }); }
+  }
+  return out;
+}
+const polyArea = p => Math.abs(p.reduce((t, a, i) => { const b = p[(i + 1) % p.length]; return t + a.x * b.y - b.x * a.y; }, 0)) / 2;
+const DIRS = ['PÓŁNOC', 'PÓŁNOCNY WSCHÓD', 'WSCHÓD', 'POŁUDNIOWY WSCHÓD', 'POŁUDNIE', 'POŁUDNIOWY ZACHÓD', 'ZACHÓD', 'PÓŁNOCNY ZACHÓD'];
+const compass = s => DIRS[Math.round(((Math.atan2(s.x, s.y) * 180 / Math.PI + 360) % 360) / 45) % 8];
+
+/* P = { rings, spacing, points, irregular, seed, homeR }, AREA = { name, center, poly } → { areas, home, ... } (bez OSM) */
+function buildZones(P, AREA) {
+  const RINGS = P.rings, SPACING = P.spacing, SEED = P.seed, IRR = P.irregular, HOME_R = P.homeR;
+  const C = AREA.center, KY = 110574, KX = 111320 * Math.cos(C.lat * Math.PI / 180);
+  const toXY = p => ({ x: (p.lng - C.lng) * KX, y: (p.lat - C.lat) * KY }), toLL = q => ({ lat: C.lat + q.y / KY, lng: C.lng + q.x / KX });
+  const rand = rng(SEED);
+  const HOME_POLY = HOME_R ? (() => { const rr = rng(SEED + 77); return Array.from({ length: 28 }, (_, i) => { const R = HOME_R * (0.92 + 0.16 * rr()), t = i / 28 * 2 * Math.PI; return [r6(C.lat + R * Math.cos(t) / KY), r6(C.lng + R * Math.sin(t) / KX)]; }); })() : AREA.poly;
+  const HOME_XY = HOME_POLY.map(q => toXY({ lat: q[0], lng: q[1] }));
+  const HOME_W = 2 * SPACING * Math.sqrt(polyArea(HOME_XY) / Math.PI) - SPACING * SPACING;
+  const seeds = [];
+  for (let q = -RINGS; q <= RINGS; q++) for (let r = -RINGS; r <= RINGS; r++) {
+    const ring = Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)); if (ring > RINGS) continue;
+    const jit = ring ? 0.27 * IRR * SPACING : 0;
+    seeds.push({ q, r, ring, x: SPACING * (q + r / 2) + (rand() - .5) * 2 * jit, y: SPACING * (r * Math.sqrt(3) / 2) + (rand() - .5) * 2 * jit, w: 0 });
+  }
+  function cell(s) {
+    const BR = (RINGS + 0.55) * SPACING;
+    let poly = Array.from({ length: 40 }, (_, i) => ({ x: BR * Math.cos(i / 40 * 2 * Math.PI), y: BR * Math.sin(i / 40 * 2 * Math.PI) }));
+    for (const o of seeds) {
+      if (o === s) continue;
+      const nx = 2 * (o.x - s.x), ny = 2 * (o.y - s.y);
+      poly = clip(poly, nx, ny, o.x * o.x + o.y * o.y - s.x * s.x - s.y * s.y + s.w - o.w);
+    }
+    return poly;
+  }
+  let cells;
+  for (let amp = 0.16 * IRR; ; amp *= 0.6) {
+    const rw = rng(SEED + 5); seeds.forEach(s => { s.w = s.ring ? (rw() - .5) * 2 * amp * SPACING * SPACING : HOME_W; });
+    cells = seeds.map(cell);
+    if (cells.every((c, i) => !seeds[i].ring || (c.length >= 3 && polyArea(c) > 0.12 * SPACING * SPACING)) || amp < 0.005) break;
+  }
+  const onEdge = (v, s, o) => Math.abs((Math.hypot(v.x - s.x, v.y - s.y) ** 2 - s.w) - (Math.hypot(v.x - o.x, v.y - o.y) ** 2 - o.w)) / (2 * Math.hypot(o.x - s.x, o.y - s.y)) < 8;
+  const nbOf = i => seeds.map((o, j) => j !== i && cells[i].filter(v => onEdge(v, seeds[i], o)).length >= 2 ? j : -1).filter(j => j >= 0);
+  const hash = (i, j, k) => { let h = Math.imul(i * 374761393 + j * 668265263 + k * 2147483647 + SEED * 1274126177, 1103515245); h ^= h >>> 13; h = Math.imul(h, 1274126177); return ((h ^ h >>> 16) >>> 0) / 4294967296 * 2 - 1; };
+  const sm = t => t * t * (3 - 2 * t);
+  function vnoise(x, y, k) {
+    const i = Math.floor(x), j = Math.floor(y), fx = sm(x - i), fy = sm(y - j);
+    const a = hash(i, j, k), b = hash(i + 1, j, k), c = hash(i, j + 1, k), d = hash(i + 1, j + 1, k);
+    return (a + (b - a) * fx) + ((c + (d - c) * fx) - (a + (b - a) * fx)) * fy;
+  }
+  function warp(p) {
+    const A1 = 0.17 * IRR * SPACING, A2 = 0.05 * IRR * SPACING, L1 = 0.9 * SPACING, L2 = 0.33 * SPACING;
+    return { x: p.x + A1 * vnoise(p.x / L1, p.y / L1, 1) + A2 * vnoise(p.x / L2, p.y / L2, 3), y: p.y + A1 * vnoise(p.x / L1, p.y / L1, 2) + A2 * vnoise(p.x / L2, p.y / L2, 4) };
+  }
+  const homeSeed = seeds.find(s => s.ring === 0);
+  function shape(poly, s) {
+    const dense = [];
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 100));
+      for (let k = 0; k < n; k++) dense.push({ x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n });
+    }
+    return dense.map(v => {
+      const near = nearestOnPoly(v, HOME_XY);
+      if (onEdge(v, s, homeSeed) && near.d < 0.6 * SPACING) return near.q;
+      const w = warp(v), f = inPoly(v, HOME_XY) ? 0 : Math.min(1, near.d / (0.5 * SPACING));
+      v = { x: v.x + (w.x - v.x) * f, y: v.y + (w.y - v.y) * f };
+      for (let n = 0; n < 200 && inPoly(v, HOME_XY); n++) { const d = Math.hypot(v.x, v.y) || 1; v = { x: v.x + v.x / d * 25, y: v.y + v.y / d * 25 }; }
+      return v;
+    });
+  }
+  const areas = [], idx = new Map();
+  seeds.forEach((s, i) => {
+    if (s.ring === 0) return;
+    const xy = shape(cells[i], s), cx = xy.reduce((t, p) => t + p.x, 0) / xy.length, cy = xy.reduce((t, p) => t + p.y, 0) / xy.length;
+    idx.set(i, areas.length);
+    areas.push({ id: 'a' + (areas.length + 1), name: 'SEKTOR ' + compass(s), ring: s.ring, xy, center: { lat: r6(toLL({ x: cx, y: cy }).lat), lng: r6(toLL({ x: cx, y: cy }).lng) },
+      poly: xy.map(p => { const l = toLL(p); return [r5(l.lat), r5(l.lng)]; }), nb: [], points: [], _i: i });
+  });
+  for (const a of areas) {
+    a.nb = nbOf(a._i).filter(j => seeds[j].ring).map(j => areas[idx.get(j)].id);
+    if (nbOf(a._i).some(j => seeds[j].ring === 0)) a.nb.push('home');
+    delete a._i;
+  }
+  return { areas, C, toXY, rand, HOME_POLY, HOME_XY, home: { isHome: true, name: AREA.name, center: C, poly: HOME_POLY, xy: HOME_XY, points: [] } };
+}
+
+/* nazwa dzielnicy + punkty wzdłuż ulic z odpowiedzi Overpass (j) */
+function fillFromOsm(a, j, G, P) {
+  const places = j.elements.filter(e => e.type === 'node' && e.tags && e.tags.name).sort((p, q) => hav(a.center, { lat: p.lat, lng: p.lon }) - hav(a.center, { lat: q.lat, lng: q.lon }));
+  const used = G.areas.filter(x => x.named).map(x => x.name);
+  const pl = a.isHome ? null : places.find(p => !used.includes(p.tags.name.toUpperCase()));
+  if (pl) { a.name = pl.tags.name.toUpperCase(); a.named = true; }
+  const cand = [];
+  for (const w of j.elements) if (w.type === 'way' && w.geometry && w.tags && w.tags.name) {
+    let acc = 70;
+    for (let i = 1; i < w.geometry.length; i++) {
+      const p0 = { lat: w.geometry[i - 1].lat, lng: w.geometry[i - 1].lon }, p1 = { lat: w.geometry[i].lat, lng: w.geometry[i].lon }, d = hav(p0, p1);
+      if (!d) continue;
+      for (let t = 140 - acc; t < d; t += 140) { const f = t / d; cand.push({ s: prefix(w.tags.name), lat: r6(p0.lat + (p1.lat - p0.lat) * f), lng: r6(p0.lng + (p1.lng - p0.lng) * f) }); acc = 0; }
+      acc = (acc + d) % 140;
+    }
+  }
+  const inside = cand.filter(c => inPoly(G.toXY(c), a.xy));
+  for (let i = inside.length - 1; i > 0; i--) { const k = Math.floor(G.rand() * (i + 1)); [inside[i], inside[k]] = [inside[k], inside[i]]; }
+  const pick = [];
+  for (const c of inside) { if (pick.length >= P.points) break; if (pick.every(p => hav(p, c) >= 130)) pick.push(c); }
+  a.points = pick;
+}
+const osmQuery = (a, SPACING) => {
+  const lats = a.poly.map(p => p[0]), lngs = a.poly.map(p => p[1]);
+  const bb = [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)].join(',');
+  return `[out:json][timeout:50];(way["highway"~"^(residential|living_street|unclassified|tertiary|secondary|pedestrian|footway|cycleway|path)$"]["name"](${bb});node["place"~"^(suburb|neighbourhood|quarter|village|hamlet)$"](around:${SPACING},${a.center.lat},${a.center.lng}););out geom qt;`;
+};
+function renderAreasJs(G) {
+  const seen = {};
+  const names = G.areas.map(a => { seen[a.name] = (seen[a.name] || 0) + 1; return seen[a.name] > 1 ? a.name + ' ' + seen[a.name] : a.name; });
+  const out = G.areas.map((a, i) => ({ id: a.id, name: names[i], ring: a.ring, center: a.center, poly: a.poly, nb: a.nb, points: a.points }));
+  return "'use strict';\n/* WYGENEROWANE przez tools/generator.html (odpowiednik tools/generate-areas.js) — nie edytuj ręcznie. Strefy odblokowywane w grze; punkty = cele misji w danej strefie. */\nconst GEN_AREAS = " + JSON.stringify(out).replace(/\},\{/g, '},\n{') + ';\n';
+}
+function renderHomeJs(G, P) {
+  return "'use strict';\n/* WYGENEROWANE przez tools/generator.html (--home) — zestaw punktów (i granica) terenu startowego do wyboru w grze (TERENY). */\nconst HOME_GEN = "
+    + JSON.stringify({ poly: P.homeR ? G.HOME_POLY : null, points: G.home.points }) + ';\n';
+}
+// ==/CORE==
+
+/* =====================  INTERFEJS  ===================== */
+const $ = id => document.getElementById(id);
+let AREA = JSON.parse(JSON.stringify(DEFAULT_AREA)), G = null, P = null, running = false, stopFlag = false;
+const MIRRORS = ['https://overpass-api.de/api/interpreter', 'https://lz4.overpass-api.de/api/interpreter', 'https://z.overpass-api.de/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.openstreetmap.fr/api/interpreter'];
+const log = (t, replaceLast) => { const L = $('log'); if (replaceLast && L.lastChild) L.lastChild.textContent = t; else { const d = document.createElement('div'); d.textContent = t; L.appendChild(d); } L.scrollTop = L.scrollHeight; };
+const bar = f => $('bar').firstElementChild.style.width = Math.round(f * 100) + '%';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function fillAreaForm() { $('aName').value = AREA.name; $('aLat').value = AREA.center.lat; $('aLng').value = AREA.center.lng; $('aInfo').textContent = AREA.poly.length + ' punktów granicy'; }
+function readParams() {
+  AREA.name = $('aName').value.trim() || AREA.name; AREA.center = { lat: +$('aLat').value, lng: +$('aLng').value };
+  return { rings: Math.max(1, +$('pRings').value | 0), spacing: +$('pSpacing').value || 3200, points: Math.max(1, +$('pPoints').value | 0), irregular: +$('pIrr').value, seed: +$('pSeed').value, homeR: +$('pHomeR').value || 0, home: $('pHome').checked };
+}
+const cacheKey = p => [p.rings, p.spacing, p.points, p.seed, AREA.center.lat, AREA.center.lng, p.homeR, p.irregular, AREA.poly.length, 'web1'].join('|');
+function loadCache() { try { const c = JSON.parse(localStorage.getItem('c2099gen')); if (c && c.key === cacheKey(P)) return c.zones; } catch (e) {} return {}; }
+function saveCache(z) { try { localStorage.setItem('c2099gen', JSON.stringify({ key: cacheKey(P), zones: z })); } catch (e) {} }
+
+/* mapa (Leaflet z zapasowymi CDN — gdy się nie załaduje, generator działa bez mapy) */
+let map = null, layer = null;
+function loadScript(url) { return new Promise(res => { const s = document.createElement('script'); s.src = url; s.onload = () => res(!!window.L); s.onerror = () => res(false); document.head.appendChild(s); }); }
+async function ensureLeaflet() {
+  if (window.L) return true;
+  const alt = [['https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js'],
+    ['https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css', 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js']];
+  for (const [css, js] of alt) {
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = css; document.head.appendChild(l);
+    if (await loadScript(js)) return true;
+  }
+  return false;
+}
+function initMap() {
+  map = L.map('map'); L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, className: 'dark-tiles', attribution: '© OpenStreetMap' }).addTo(map);
+  map.setView([AREA.center.lat, AREA.center.lng], 12); layer = L.layerGroup().addTo(map);
+}
+const COL = ['#39ff88', '#00f0ff', '#ff2bd6', '#fcee0a'];
+function draw(fit) {
+  if (!map || !G) return; layer.clearLayers(); const all = [];
+  const add = (a, ring, home) => {
+    const c = COL[Math.min(ring, COL.length - 1)];
+    L.polygon(a.poly, { color: c, weight: 2, fillColor: c, fillOpacity: home ? .22 : .14 }).bindTooltip(a.name + ' (' + a.points.length + ' pkt)', { permanent: true, direction: 'center', className: 'tip' + (home ? ' home' : '') }).addTo(layer);
+    all.push(...a.poly); a.points.forEach(p => L.circleMarker([p.lat, p.lng], { radius: 3, color: '#fcee0a', weight: 1, fillOpacity: .9 }).bindTooltip(p.s).addTo(layer));
+  };
+  add({ name: AREA.name, poly: G.HOME_POLY, points: G.home.points }, 0, true); G.areas.forEach(a => add(a, a.ring));
+  if (fit) map.fitBounds(all, { padding: [20, 20] });
+}
+function updButtons() {
+  $('bZones').disabled = running; $('bOsm').disabled = running || !G; $('bStop').disabled = !running;
+  $('dAreas').disabled = !G; $('dHome').disabled = !G || !G.home.points.length;
+}
+
+$('bLoad').onclick = () => $('fArea').click();
+$('fArea').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { const A = new Function(await f.text() + '\n;return AREA;')(); if (!A || !A.center || !A.poly) throw new Error('brak AREA.center / AREA.poly'); AREA = { name: A.name, center: A.center, poly: A.poly }; fillAreaFill(); log('Wczytano ' + f.name + ': ' + AREA.name); }
+  catch (err) { log('BŁĄD wczytywania area.js: ' + err.message); }
+};
+const fillAreaFill = fillAreaForm;
+
+$('bZones').onclick = () => {
+  P = readParams();
+  if (!(AREA.center.lat && AREA.center.lng)) return log('Podaj środek terenu (lat/lng).');
+  $('log').innerHTML = ''; bar(0);
+  try { G = buildZones(P, AREA); } catch (e) { return log('BŁĄD: ' + e.message); }
+  const cache = loadCache(); let fromCache = 0;
+  for (const a of G.areas) if (cache[a.id]) { a.name = cache[a.id].name; a.named = cache[a.id].named; a.points = cache[a.id].points; fromCache++; }
+  if (cache.home) G.home.points = cache.home.points;
+  log(`Strefy: ${G.areas.length} (pierścienie: ${P.rings}, rozstaw ${P.spacing} m)` + (fromCache ? ` · ${fromCache} z pamięci przeglądarki` : ''));
+  if (P.homeR && P.homeR > P.spacing * 0.55) log(`UWAGA: promień ${P.homeR} m jest duży przy rozstawie ${P.spacing} m — strefy sąsiednie będą nachodzić na start.`);
+  draw(true); updButtons();
+};
+
+async function overpass(q) {
+  let lastErr = '';
+  for (let t = 0; t < 6; t++) {
+    for (const u of MIRRORS.slice().sort(() => Math.random() - .5)) {
+      if (stopFlag) throw new Error('przerwano');
+      try {
+        const r = await fetch(u, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: AbortSignal.timeout(90000) });
+        if (r.ok) return await r.json();
+        lastErr = new URL(u).host + ' → HTTP ' + r.status + (r.status === 429 ? ' (za dużo zapytań — czekam)' : '');
+      } catch (e) { lastErr = new URL(u).host + ' → ' + e.message; }
+    }
+    log('  ' + lastErr + ' — ponawiam za ' + 5 * (t + 1) + ' s…'); await sleep(5000 * (t + 1));
+  }
+  throw new Error('Overpass nie odpowiada. Ostatni błąd: ' + lastErr);
+}
+
+$('bOsm').onclick = async () => {
+  if (!G) return; running = true; stopFlag = false; updButtons();
+  const cache = loadCache(); let failed = 0;
+  const list = P.home ? [...G.areas, G.home] : G.areas;
+  for (let n = 0; n < list.length; n++) {
+    const a = list[n], key = a.isHome ? 'home' : a.id, label = a.isHome ? 'teren startowy' : a.id + '/' + G.areas.length;
+    bar(n / list.length);
+    if (cache[key] && (a.isHome || a.points.length || a.named !== undefined)) { log('  ' + label + ' … ' + (a.isHome ? '' : a.name + ' · ') + a.points.length + ' pkt (z pamięci)'); continue; }
+    log('  ' + label + ' … pobieram'); 
+    try {
+      const j = await overpass(osmQuery(a, P.spacing)); fillFromOsm(a, j, G, P);
+      cache[key] = a.isHome ? { points: a.points } : { name: a.name, named: a.named, points: a.points }; saveCache(cache);
+      log('  ' + label + ' … ' + (a.isHome ? '' : a.name + ' · ') + a.points.length + ' pkt', true); draw(false);
+    } catch (e) { if (stopFlag) break; log('  ' + label + ' … BŁĄD: ' + e.message, true); failed++; }
+    await sleep(1200);
+  }
+  running = false; bar(stopFlag ? 0 : 1); updButtons(); draw(false);
+  if (stopFlag) log('Przerwano. Ukończone strefy są zapamiętane — kliknij ② żeby kontynuować.');
+  else log(failed ? `UWAGA: ${failed} stref bez punktów (serwer OSM nie odpowiedział). Kliknij ② jeszcze raz — dociągnie tylko brakujące.` : 'Gotowe. Pobierz pliki poniżej.');
+};
+$('bStop').onclick = () => { stopFlag = true; };
+$('bClear').onclick = () => { localStorage.removeItem('c2099gen'); log('Pamięć OSM wyczyszczona — następne ② pobierze wszystko od nowa.'); };
+
+function download(name, text) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/javascript' })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+$('dAreas').onclick = () => {
+  const empty = G.areas.filter(a => !a.points.length).length;
+  if (empty && !confirm(empty + ' stref nie ma punktów (OSM nie pobrane). Pobrać mimo to? W grze cele w tych strefach pójdą z ulic OSM jak dotąd.')) return;
+  download('areas.generated.js', renderAreasJs(G));
+};
+$('dHome').onclick = () => download('home.generated.js', renderHomeJs(G, P));
+
+fillAreaForm(); updButtons();
+ensureLeaflet().then(ok => {
+  if (ok) { initMap(); draw(true); }
+  else { $('map').style.cssText += ';padding:12px'; $('map').textContent = 'Mapa niedostępna (nie udało się załadować biblioteki Leaflet — sprawdź internet / blokadę reklam). Generator działa normalnie, tylko bez podglądu.'; log('Uwaga: brak mapy, ale generowanie i pobieranie plików działa.'); }
+});
+</script></body></html>
