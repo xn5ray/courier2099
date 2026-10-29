@@ -129,4 +129,5 @@ async function fillArea(a) {
   const head = `'use strict';\n/* WYGENEROWANE przez tools/generate-areas.js — nie edytuj ręcznie (uruchom skrypt ponownie). Strefy odblokowywane w grze; punkty = cele misji w danej strefie. */\n`;
   fs.writeFileSync(OUT, head + 'const GEN_AREAS = ' + JSON.stringify(out).replace(/\},\{/g, '},\n{') + ';\n');
   console.log('Zapisano ' + path.relative(ROOT, OUT) + ' (' + (fs.statSync(OUT).size / 1024).toFixed(0) + ' KB)');
+  require('./make-preview.js');   // odśwież też podgląd tools/areas-preview.html
 })();
