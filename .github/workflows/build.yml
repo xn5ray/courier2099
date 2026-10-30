@@ -36,7 +36,8 @@ jobs:
             "webDir": "www",
             "backgroundColor": "#05060a",
             "server": { "androidScheme": "https" },
-            "android": { "allowMixedContent": false }
+            "android": { "allowMixedContent": false },
+            "plugins": { "CapacitorUpdater": { "autoUpdate": false } }
           }
           JSON
           cat > scripts/prepare.js <<'JS'
@@ -81,12 +82,14 @@ jobs:
       - name: Install dependencies
         run: |
           npm init -y
-          npm install @capacitor/core @capacitor/android @capacitor/app @capacitor/geolocation @capacitor/local-notifications @capacitor-community/keep-awake leaflet @fontsource/orbitron @fontsource/share-tech-mono
+          npm install @capacitor/core @capacitor/android @capacitor/app @capacitor/geolocation @capacitor/local-notifications @capacitor-community/keep-awake @capgo/capacitor-updater leaflet @fontsource/orbitron @fontsource/share-tech-mono
           npm install -D @capacitor/cli
 
       - name: Build web assets and Android project
         run: |
           node scripts/prepare.js
+          echo "window.BUILD_NUM = ${{ github.run_number }};" > www/js/build-info.js
+          (cd www && zip -qr ../bundle.zip .)
           npx cap add android
           npx cap sync android
           node scripts/patch-android.js
@@ -118,9 +121,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk courier2099.apk
-          gh release create "build-${{ github.run_number }}" courier2099.apk \
+          gh release create "build-${{ github.run_number }}" courier2099.apk bundle.zip \
             --title "COURIER 2099 build ${{ github.run_number }}" \
-            --notes "Debug APK. Download courier2099.apk on your phone and install it."
+            --notes "Debug APK (install courier2099.apk on your phone). bundle.zip is the game files used by the in-app automatic updater."
 
       - uses: actions/upload-artifact@v4
         with:

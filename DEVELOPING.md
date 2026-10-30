@@ -91,6 +91,11 @@ Misja w zablokowanej strefie (GPS) jest odrzucana; w trybie symulacji strefę wy
 
 Wystarczy wrzucić zmiany do repozytorium na GitHubie — workflow `.github/workflows/build.yml` buduje APK (zakładka Actions → Releases).
 
+## Automatyczne aktualizacje (OTA)
+
+Każdy build dokłada do release plik `bundle.zip` (pliki gry: HTML/CSS/JS). Przy starcie aplikacja (`js/updater.js`) pyta GitHuba o najnowszy release; jeśli ma wyższy numer niż ta wersja (`js/build-info.js`, ustawiany przez workflow), pobiera paczkę w tle i przeładowuje grę z nową wersją — bez ręcznej instalacji APK. Gdy trwa misja, nowa wersja wejdzie przy następnym uruchomieniu.
+Działa to tylko dla zmian w plikach gry. **Zmiana natywna** (nowa wtyczka Capacitora, uprawnienia w `patch-android.js`) nadal wymaga zainstalowania nowego APK. Pierwszy APK z tą funkcją trzeba zainstalować ręcznie, dopiero kolejne wersje aktualizują się same. Jeśli nowa wersja się wysypie, wtyczka sama wraca do poprzedniej.
+
 ## Chmura punktów (Firebase)
 
 Punkty z edytora leżą w telefonie (`localStorage`), więc znikają przy odinstalowaniu aplikacji. Chmura trzyma ich kopię i przywraca po reinstalacji.
