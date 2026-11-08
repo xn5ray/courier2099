@@ -116,10 +116,16 @@ function startWatch() {
   if (sim) return;
   const g = nGeo();
   if (g) {
-    g.watchPosition({ enableHighAccuracy: true, maximumAge: 1000, timeout: 30000 }, (p, err) => {
-      if (p && p.coords) setPos(p.coords.latitude, p.coords.longitude, p.coords.accuracy);
-      else if (err) toast('SYGNAŁ GPS: ' + geoErrText({ code: 2 }), 'warn', 6000);
-    }).then(id => { nWatch = id; if (!M) { try { g.clearWatch({ id }); } catch (e) {} nWatch = null; } }).catch(() => {});
+    // W APK watchPosition bywa wywołaniem z callbackiem: zwraca od razu id (tekst) zamiast obietnicy — obsługujemy oba przypadki.
+    const got = id => { nWatch = id; if (!M) { try { g.clearWatch({ id }); } catch (e) {} nWatch = null; } };
+    try {
+      const r = g.watchPosition({ enableHighAccuracy: true, maximumAge: 1000, timeout: 30000 }, (p, err) => {
+        if (p && p.coords) setPos(p.coords.latitude, p.coords.longitude, p.coords.accuracy);
+        else if (err) toast('SYGNAŁ GPS: ' + geoErrText({ code: 2 }), 'warn', 6000);
+      });
+      if (r && typeof r.then === 'function') r.then(got).catch(() => {});
+      else if (r != null) got(r);
+    } catch (e) { toast('SYGNAŁ GPS: nie udało się włączyć śledzenia', 'warn', 6000); }
     return;
   }
   if (!navigator.geolocation) return;

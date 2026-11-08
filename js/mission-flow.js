@@ -68,7 +68,7 @@ function beginUI(resume) {
   setTimeout(() => { if (map) { map.invalidateSize(); renderMap(); renderEvent(); fitAll(); if (pos) updatePlayerMarker(); } }, 80);
   follow = false;
   setTimeout(() => { if (M && map) { follow = true; if (pos) map.setView([pos.lat, pos.lng], 17); } }, 5000);
-  startWatch();
+  try { startWatch(); } catch (e) { toast('Błąd GPS: ' + (e && e.message), 'warn', 6000); }   // błąd GPS nie może zatrzymać licznika
   clearInterval(tickT); tickT = setInterval(tick, 1000);
   tick(); updateHUD();
 }
