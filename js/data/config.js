@@ -6,7 +6,8 @@ const SAVE_KEY = 'courier2099.save.v1', MISSION_KEY = 'courier2099.mission.v1';
 const MISSION_MIN = 45;
 /* CHMURA PUNKTÓW (Firebase Realtime Database): wklej adres bazy, np. 'https://twoj-projekt-default-rtdb.europe-west1.firebasedatabase.app'. Puste = bez chmury. Instrukcja: DEVELOPING.md */
 const CLOUD_URL = 'https://cybercourier-6d659-default-rtdb.europe-west1.firebasedatabase.app/';
-const REWARD_TARGET = 100, REWARD_RELAY = 150, REWARD_COMPLETE = 200;
+const REWARD_MULT = 2;   // mnożnik nagród z misji (1 = stawki bazowe) — tu stroisz ile ₵ dają misje
+const REWARD_TARGET = 100 * REWARD_MULT, REWARD_RELAY = 150 * REWARD_MULT, REWARD_COMPLETE = 200 * REWARD_MULT;
 const PATROL_PENALTY = 60, MG_PENALTY = 5, FIX_COST = 50;
 const DEF = { credits: 0, missions: 0, best: 0, sound: true, haptic: true, sim: false, up: { boots: 0, decrypt: 0, battery: 0 },
   scrap: 0, cool: 0, comps: 0, nodeT: 0, qboard: null, imp: {}, areas: {}, areaN: {}, areaSel: 'home',
