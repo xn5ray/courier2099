@@ -152,7 +152,7 @@ function genTargets(base) {
 function createMission(base) {
   const now = Date.now(), mins = missionMinutes();
   return { base: { lat: base.lat, lng: base.lng }, preset: usePreset(base), targets: genTargets(base), idx: 0, startedAt: now, endsAt: now + mins * 60000,
-    done: 0, relays: 0, penalties: 0, event: null, extra: 0, walkMs: 0, nextWalk: rand(420000, 720000), hard: false, scrap: 0, cool: 0 };
+    done: 0, relays: 0, penalties: 0, event: null, extra: 0, walkMs: 0, nextWalk: rand(420000, 720000) / EVENT_FREQ, hard: false, scrap: 0, cool: 0 };
 }
 function goal() {
   if (!M) return null;

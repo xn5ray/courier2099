@@ -10,18 +10,35 @@ const fmt = s => { s = Math.max(0, Math.floor(s)); return String(Math.floor(s / 
 /* ================= NATIVE (Capacitor / Android) ================= */
 const CAP = window.Capacitor, NATIVE = !!(CAP && CAP.isNativePlatform && CAP.isNativePlatform());
 const plug = n => (NATIVE && CAP.Plugins && CAP.Plugins[n]) || null;
-const nGeo = () => plug('Geolocation'), nAwake = () => plug('KeepAwake'), nNotif = () => plug('LocalNotifications');
+const nGeo = () => plug('Geolocation'), nAwake = () => plug('KeepAwake'), nNotif = () => plug('LocalNotifications'), nStep = () => plug('CapacitorPedometer');
 const EV_TITLE = { patrol: 'PATROL DRONÓW', quiet: 'CICHY KROK', jam: 'ZAGŁUSZACZ SYGNAŁU', drop: 'DEAD DROP', hold: 'PRZEJĘCIE SYGNAŁU', hacker: 'POTRZEBUJĄCY HAKER', glitch: 'AWARIA CYBERWARE', relay: 'SZYBKI PRZEKAZ', rogue: 'ROGUE DATA GLITCH' };
 const EV_BODY = { patrol: 'Strefa skanowana — obejdź ją lub odczekaj 2 min.', quiet: 'Strefa czujników drgań — idź wolno.', jam: 'Mapa wyłączona na 3 min. Użyj kompasu.', drop: 'Porzucona skrzynia w pobliżu — zniknie za 4 min.', hold: 'Wejdź w strefę i wytrwaj 3 min.', hacker: 'Ranny haker prosi o pomoc — otwórz grę.', glitch: 'Zakłócenia ekranu i błędny dystans.', relay: 'Masz 5 min na dotarcie do punktu bonusowego.', rogue: 'Uciekający glitch w pobliżu — złap go, zanim zniknie!' };
 let notifId = 1;
+const NOTIF_CH = 'c2099-events';
 async function initNotif() {
   const n = nNotif(); if (!n) return;
   try { const p = await n.checkPermissions(); if (p.display !== 'granted') await n.requestPermissions(); } catch (e) {}
+  try { await n.createChannel({ id: NOTIF_CH, name: 'Wydarzenia w misji', description: 'Patrole, dead dropy i inne zdarzenia podczas misji', importance: 5, visibility: 1, vibration: true }); } catch (e) {}   // importance 5 = wyskakujące, z dźwiękiem
 }
-function notifyEv(type) {
+function notifyMsg(title, body) {
   const n = nNotif();
-  if (!n || document.visibilityState === 'visible') return;   // w grze działają zwykłe powiadomienia na ekranie
-  try { n.schedule({ notifications: [{ id: (notifId++ % 100000) + 1, title: '⚠ ' + (EV_TITLE[type] || 'ZDARZENIE'), body: EV_BODY[type] || 'Nowe zdarzenie w misji.', schedule: { at: new Date(Date.now() + 150) } }] }); } catch (e) {}
+  if (!n || (!NOTIFY_ALWAYS && document.visibilityState === 'visible')) return;   // NOTIFY_ALWAYS=false: na ekranie wystarczą zwykłe komunikaty w grze
+  try { n.schedule({ notifications: [{ id: (notifId++ % 100000) + 1, channelId: NOTIF_CH, title, body, schedule: { at: new Date(Date.now() + 150) } }] }); } catch (e) {}
+}
+function notifyEv(type) { notifyMsg('⚠ ' + (EV_TITLE[type] || 'ZDARZENIE'), EV_BODY[type] || 'Nowe zdarzenie w misji.'); }
+/* Uprawnienie „Aktywność fizyczna” (Android 10+): bez zgody misja się nie zaczyna. Zwraca true, gdy można grać. */
+async function requireActivity() {
+  if (!REQUIRE_ACTIVITY || !NATIVE || save.sim) return true;
+  const st = nStep();
+  if (!st) return true;   // starszy APK bez wtyczki kroków — nie blokuj gry
+  try {
+    let p = await st.checkPermissions();
+    if (p.activityRecognition !== 'granted') p = await st.requestPermissions();
+    if (p.activityRecognition === 'granted') return true;
+  } catch (e) { return true; }   // błąd samej wtyczki nie może zablokować gry
+  const msg = 'Ta gra wymaga uprawnienia <b>Aktywność fizyczna</b> (ma pilnować, że naprawdę idziesz). Włącz je: Ustawienia telefonu → Aplikacje → COURIER 2099 → Uprawnienia.';
+  toast(msg, 'bad', 10000); $('#menuHint').innerHTML = msg;
+  return false;
 }
 let nWatch = null;
 
