@@ -87,7 +87,7 @@ function finish(kind) {
     const V = QUICK_MISSIONS[m.quick.v];
     if (kind === 'success') {
       title = 'SZYBKA MISJA ZAKOŃCZONA · ' + V.title;
-      const tb = Math.floor(rem / 8), bn = m.quick.bonus || V.reward;
+      const tb = Math.floor(rem * REWARD_MULT / 8), bn = m.quick.bonus || V.reward;
       lines.push(['Cel dostarczony', QUICK_BASE_REWARD], [`Premia za czas (zostało ${fmt(rem)})`, tb], [V.title + ' — premia za zadanie', bn]);
       total += QUICK_BASE_REWARD + tb + bn;
       if (m.quick.clean) { lines.push(['Czyste podejście (bez wykrycia)', m.quick.clean]); total += m.quick.clean; }
@@ -97,7 +97,7 @@ function finish(kind) {
     }
   } else if (kind === 'success') {
     title = 'MISJA ZAKOŃCZONA';
-    const tb = Math.floor(rem / 6);
+    const tb = Math.floor(rem * REWARD_MULT / 6);
     lines.push([`Dostarczone cele (${m.done})`, base], [`Premia za czas (zostało ${fmt(rem)})`, tb], ['Bonus za ukończenie misji', REWARD_COMPLETE]);
     total += base + tb + REWARD_COMPLETE;
   } else if (kind === 'timeout') {
