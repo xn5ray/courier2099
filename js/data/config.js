@@ -8,6 +8,9 @@ const MISSION_MIN = 45;
 const CLOUD_URL = 'https://cybercourier-6d659-default-rtdb.europe-west1.firebasedatabase.app/';
 const REWARD_MULT = 2;   // mnożnik nagród z misji (1 = stawki bazowe) — tu stroisz ile ₵ dają misje
 const EVENT_FREQ = 2;    // częstotliwość wydarzeń w misjach (1 = co 7-12 min marszu, 2 = dwa razy częściej, 3 = trzy razy…)
+const NOTIFY_ALWAYS = true;   // powiadomienie systemowe o każdym wydarzeniu, także gdy gra jest na ekranie (false = tylko gdy w tle)
+const REQUIRE_ACTIVITY = true;   // Android: misja wymaga zgody na uprawnienie „Aktywność fizyczna” (nie dotyczy trybu symulacji)
+const NEAR_NOTIFY_R = 150, NEAR_EVENT_R = 80;   // powiadomienie „jesteś blisko”: od tylu metrów do celu / do punktu wydarzenia (Dead Drop, Przejęcie sygnału, Przekaz, Glitch)
 const REWARD_TARGET = 100 * REWARD_MULT, REWARD_RELAY = 150 * REWARD_MULT, REWARD_COMPLETE = 200 * REWARD_MULT;
 const PATROL_PENALTY = 60, MG_PENALTY = 5, FIX_COST = 50;
 const DEF = { credits: 0, missions: 0, best: 0, sound: true, haptic: true, sim: false, up: { boots: 0, decrypt: 0, battery: 0 },
