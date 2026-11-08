@@ -5,6 +5,7 @@
 async function startMission(quick, forcedV, slot) {
   initAudio(); requestCompass(); lockScreen(); initNotif();
   sim = save.sim;
+  if (!(await requireActivity())) { releaseLock(); return; }
   $('#menuHint').textContent = '';
   $('#loading').hidden = false; $('#loadMsg').textContent = 'SKANOWANIE SATELIT…';
   let start;
