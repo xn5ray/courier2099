@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#05060d">
+<title>Courier 2099 — Delivery Run 2.5D</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+:root{--cy:#00f0ff;--pk:#ff2bd6;--yl:#fff200;--rd:#ff2a3d;--gr:#39ff88;--bg:#05060d;--panel:rgba(6,10,22,.82);
+--top:env(safe-area-inset-top,0px);--bot:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--cy);font-family:"Courier New",ui-monospace,monospace;overflow:hidden;touch-action:manipulation;user-select:none}
+#map{position:fixed;inset:0}
+.maplibregl-ctrl-attrib{font-size:9px!important;background:rgba(5,6,13,.7)!important;color:#7aa!important}
+.maplibregl-ctrl-attrib a{color:#7cc!important}
+#fog{position:fixed;inset:0;pointer-events:none;z-index:2;
+background:linear-gradient(to bottom,#05060d 0%,rgba(5,6,13,.88) 7%,rgba(5,6,13,0) 30%),
+radial-gradient(ellipse at 50% 60%,rgba(0,0,0,0) 55%,rgba(0,0,0,.55) 100%),
+repeating-linear-gradient(to bottom,rgba(0,240,255,.035) 0 1px,transparent 1px 3px)}
+.hide{display:none!important}
+button{font-family:inherit;color:var(--cy);background:rgba(0,240,255,.08);border:1px solid var(--cy);padding:10px 14px;font-size:14px;letter-spacing:1px;text-transform:uppercase;border-radius:2px;cursor:pointer;text-shadow:0 0 6px var(--cy)}
+button:active{background:rgba(0,240,255,.3)}
+button.pk{color:var(--pk);border-color:var(--pk);background:rgba(255,43,214,.1);text-shadow:0 0 6px var(--pk)}
+button.pk:active{background:rgba(255,43,214,.35)}
+button:disabled{opacity:.4}
+select{font-family:inherit;background:#050a16;color:var(--cy);border:1px solid var(--cy);padding:8px;font-size:14px;border-radius:2px}
+
+/* HUD */
+#hud{position:fixed;inset:0;z-index:5;pointer-events:none}
+#hud>*{pointer-events:auto}
+#top{position:absolute;left:0;right:0;top:0;padding:calc(var(--top) + 8px) 10px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;pointer-events:none}
+.box{background:var(--panel);border:1px solid rgba(0,240,255,.5);padding:6px 10px;box-shadow:0 0 14px rgba(0,240,255,.25)}
+#timer{font-size:28px;font-weight:bold;text-shadow:0 0 10px var(--cy);line-height:1}
+#timer.low{color:var(--rd);text-shadow:0 0 10px var(--rd);animation:blink 1s steps(2) infinite}
+#obj{text-align:center;font-size:12px;color:var(--pk);text-shadow:0 0 8px var(--pk);border-color:rgba(255,43,214,.6);flex:1}
+#obj small{display:block;color:#6fc;opacity:.75;font-size:10px;margin-top:2px}
+#cred{text-align:right;font-size:18px;color:var(--yl);text-shadow:0 0 8px var(--yl);border-color:rgba(255,242,0,.5)}
+@keyframes blink{50%{opacity:.35}}
+#nav{position:absolute;left:10px;right:10px;bottom:calc(var(--bot) + 10px);display:flex;gap:8px;align-items:flex-end;pointer-events:none}
+#navcard{display:flex;align-items:center;gap:12px;flex:1;pointer-events:auto}
+#arrow{width:46px;height:46px;transition:transform .15s linear;flex:none}
+#dist{font-size:26px;font-weight:bold;line-height:1;text-shadow:0 0 10px var(--cy)}
+#dname{font-size:11px;color:var(--pk);margin-top:3px}
+#side{display:flex;flex-direction:column;gap:6px;pointer-events:auto}
+#side button{padding:7px 9px;font-size:11px;min-width:64px}
+#act{position:absolute;left:10px;right:10px;bottom:calc(var(--bot) + 96px);font-size:18px;padding:16px;animation:pulse 1s ease-in-out infinite;pointer-events:auto}
+@keyframes pulse{50%{box-shadow:0 0 24px var(--pk);}}
+#toast{position:absolute;left:12px;right:12px;top:calc(var(--top) + 78px);text-align:center;font-size:14px;padding:10px;background:var(--panel);border:1px solid var(--cy);color:var(--cy);opacity:0;transition:opacity .25s;pointer-events:none;text-shadow:0 0 6px var(--cy)}
+#toast.show{opacity:1}
+#toast.bad{border-color:var(--rd);color:var(--rd);text-shadow:0 0 6px var(--rd)}
+#toast.good{border-color:var(--gr);color:var(--gr);text-shadow:0 0 6px var(--gr)}
+#toast.warn{border-color:var(--yl);color:var(--yl);text-shadow:0 0 6px var(--yl)}
+#gps{position:absolute;left:10px;top:calc(var(--top) + 54px);font-size:10px;color:#6fc;opacity:.7;pointer-events:none}
+#simpad{position:absolute;left:10px;bottom:calc(var(--bot) + 164px);display:grid;grid-template-columns:repeat(3,52px);gap:5px;pointer-events:auto}
+#simpad button{padding:10px 0;font-size:18px}
+#simtools{position:absolute;right:10px;bottom:calc(var(--bot) + 164px);display:flex;flex-direction:column;gap:5px;pointer-events:auto}
+#simtools button{font-size:11px;padding:6px 8px}
+
+/* Overlays */
+.ov{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:calc(var(--top) + 14px) 14px calc(var(--bot) + 14px);background:rgba(3,5,12,.55);overflow:auto}
+.panel{background:var(--panel);border:1px solid var(--cy);box-shadow:0 0 30px rgba(0,240,255,.3);padding:18px;width:100%;max-width:440px;backdrop-filter:blur(3px)}
+h1{margin:0;font-size:26px;letter-spacing:3px;color:var(--cy);text-shadow:0 0 14px var(--cy),2px 0 var(--pk)}
+h1 span{color:var(--pk);text-shadow:0 0 14px var(--pk)}
+.sub{font-size:11px;color:var(--pk);letter-spacing:2px;margin:4px 0 12px}
+p{font-size:13px;line-height:1.45;color:#9ee;margin:8px 0}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between;margin:8px 0;font-size:13px}
+.col{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.note{font-size:11px;color:#7aa;margin-top:10px}
+.item{border:1px solid rgba(0,240,255,.4);padding:10px;margin:8px 0;display:flex;gap:10px;align-items:center;justify-content:space-between}
+.item b{color:var(--pk)}
+.item small{display:block;color:#9ee;font-size:11px;margin-top:3px}
+.item.own{opacity:.6;border-color:var(--gr)}
+.big{font-size:20px;color:var(--yl);text-shadow:0 0 8px var(--yl)}
+
+/* Hack */
+#hack{background:rgba(2,4,10,.92)}
+#hack .panel{border-color:var(--pk);box-shadow:0 0 30px rgba(255,43,214,.35)}
+#seq{display:flex;gap:8px;justify-content:center;margin:10px 0}
+.tok{width:52px;height:52px;display:flex;align-items:center;justify-content:center;border:1px solid var(--cy);font-size:20px;font-weight:bold}
+.tok.done{background:rgba(57,255,136,.25);border-color:var(--gr);color:var(--gr)}
+.tok.cur{border-color:var(--pk);color:var(--pk);box-shadow:0 0 12px var(--pk)}
+#grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}
+.cell{height:60px;font-size:22px;font-weight:bold;padding:0}
+.cell.hint{border-color:var(--yl);color:var(--yl);box-shadow:0 0 10px var(--yl)}
+.cell.err{background:rgba(255,42,61,.5);border-color:var(--rd)}
+#bar{height:6px;background:rgba(0,240,255,.15);margin:6px 0}
+#bar i{display:block;height:100%;background:var(--pk);box-shadow:0 0 8px var(--pk);width:100%}
+
+/* Map labels */
+.lbl{pointer-events:none;display:flex;flex-direction:column;align-items:center;font-family:"Courier New",monospace}
+.lbl span{font-size:11px;font-weight:bold;padding:3px 7px;white-space:nowrap;background:rgba(5,6,13,.85);border:1px solid;letter-spacing:1px}
+.lbl i{display:block;width:2px;height:64px}
+.lbl.cy span{color:var(--cy);border-color:var(--cy)}.lbl.cy i{background:linear-gradient(to bottom,var(--cy),transparent)}
+.lbl.pk span{color:var(--pk);border-color:var(--pk);text-shadow:0 0 8px var(--pk)}.lbl.pk i{background:linear-gradient(to bottom,var(--pk),transparent);box-shadow:0 0 10px var(--pk)}
+.lbl.dim span{color:#a45;border-color:#703060;opacity:.8}.lbl.dim i{background:linear-gradient(to bottom,#703060,transparent);height:36px}
+.lbl.yl span{color:var(--yl);border-color:var(--yl)}.lbl.yl i{background:linear-gradient(to bottom,var(--yl),transparent)}
+.lbl.rd span{color:var(--rd);border-color:var(--rd);animation:blink .6s steps(2) infinite}.lbl.rd i{background:linear-gradient(to bottom,var(--rd),transparent);height:30px}
+.player{width:44px;height:44px;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="fog"></div>
+
+<div id="hud" class="hide">
+  <div id="top">
+    <div class="box"><div id="timer">00:00</div></div>
+    <div class="box" id="obj">—<small></small></div>
+    <div class="box" id="cred">0¢</div>
+  </div>
+  <div id="gps"></div>
+  <div id="toast"></div>
+  <div id="simpad" class="hide">
+    <span></span><button data-k="up">▲</button><span></span>
+    <button data-k="left">◀</button><button data-k="down">▼</button><button data-k="right">▶</button>
+  </div>
+  <div id="simtools" class="hide">
+    <button id="sDrone">+ DRON</button>
+    <button id="sRelay">+ RELAY</button>
+    <button id="sTp">TP → CEL</button>
+  </div>
+  <button id="act" class="pk hide">HAKUJ WĘZEŁ</button>
+  <div id="nav">
+    <div id="navcard" class="box">
+      <svg id="arrow" viewBox="0 0 50 50"><polygon points="25,3 42,44 25,35 8,44" fill="rgba(255,43,214,.25)" stroke="#ff2bd6" stroke-width="2.5" stroke-linejoin="round"/></svg>
+      <div><div id="dist">—</div><div id="dname">—</div></div>
+    </div>
+    <div id="side">
+      <button id="bCam">KAMERA</button>
+      <button id="bGfx">GRAFIKA</button>
+      <button id="bSnd">DŹWIĘK</button>
+      <button id="bBat">🔋 ×0</button>
+      <button id="bRe">⟳ CEL</button>
+    </div>
+  </div>
+</div>
+
+<div id="menu" class="ov">
+  <div class="panel">
+    <h1>COURIER<span>2099</span></h1>
+    <div class="sub">DELIVERY RUN // TRYB 2.5D</div>
+    <p>Dostarcz paczki do 3–4 węzłów w prawdziwym mieście. Podejdź na odległość interakcji, zhakuj węzeł i wróć do bazy, zanim padnie bateria GPS. Uważaj na drony patrolowe i łap bonusowe przekaźniki.</p>
+    <div class="row"><span>Czas misji</span>
+      <select id="selDur"><option value="45">45 min</option><option value="50">50 min</option><option value="60">60 min</option></select></div>
+    <div class="row"><span>Maks. dystans celu</span>
+      <select id="selDist"><option value="700">700 m</option><option value="1000">1 km</option><option value="1500">1,5 km</option><option value="2000">2 km</option></select></div>
+    <div class="row"><span>Kredyty</span><span class="big" id="mCred">0¢</span></div>
+    <div class="row"><span id="mUp" style="font-size:11px;color:#9ee"></span></div>
+    <div class="col">
+      <button id="bStart" class="pk">▶ START MISJI (GPS)</button>
+      <button id="bShop">SKLEP</button>
+      <button id="bSim">TRYB TESTOWY (SYMULACJA)</button>
+    </div>
+    <div class="note">Bezpieczeństwo: patrz na drogę, nie na ekran. Cele są losowane bez znajomości terenu — jeśli punkt wypadnie w niedostępnym miejscu, użyj ⟳ CEL (kosztuje 1 min).</div>
+  </div>
+</div>
+
+<div id="shop" class="ov hide">
+  <div class="panel">
+    <h1>SKLEP<span>//</span>CZARNY RYNEK</h1>
+    <div class="row"><span>Kredyty</span><span class="big" id="sCred">0¢</span></div>
+    <div id="items"></div>
+    <div class="col"><button id="bShopBack">← WRÓĆ</button></div>
+  </div>
+</div>
+
+<div id="hack" class="ov hide">
+  <div class="panel">
+    <h1 style="font-size:20px">BREACH<span>_PROTOCOL</span></h1>
+    <p id="hackInfo">Wpisz sekwencję kodów w podanej kolejności.</p>
+    <div id="seq"></div>
+    <div id="bar"><i></i></div>
+    <div id="grid"></div>
+    <div class="row"><span id="hackT"></span><button id="hackCancel">ANULUJ</button></div>
+  </div>
+</div>
+
+<div id="end" class="ov hide">
+  <div class="panel">
+    <h1 id="endTitle">MISJA</h1>
+    <div class="sub" id="endSub"></div>
+    <div id="endStats"></div>
+    <div class="col">
+      <button id="bEndShop">SKLEP</button>
+      <button id="bEndMenu" class="pk">NOWA MISJA</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============ Narzędzia geo ============ */
+const R_EARTH=6371000, rad=d=>d*Math.PI/180, deg=r=>r*180/Math.PI;
+const $=s=>document.querySelector(s);
+function dist(a,b){const dLat=rad(b[1]-a[1]),dLng=rad(b[0]-a[0]);const x=Math.sin(dLat/2)**2+Math.cos(rad(a[1]))*Math.cos(rad(b[1]))*Math.sin(dLng/2)**2;return 2*R_EARTH*Math.asin(Math.sqrt(x));}
+function bearing(a,b){const y=Math.sin(rad(b[0]-a[0]))*Math.cos(rad(b[1]));const x=Math.cos(rad(a[1]))*Math.sin(rad(b[1]))-Math.sin(rad(a[1]))*Math.cos(rad(b[1]))*Math.cos(rad(b[0]-a[0]));return (deg(Math.atan2(y,x))+360)%360;}
+function dest(a,brg,d){const dl=d/R_EARTH,t=rad(brg),p1=rad(a[1]),l1=rad(a[0]);const p2=Math.asin(Math.sin(p1)*Math.cos(dl)+Math.cos(p1)*Math.sin(dl)*Math.cos(t));const l2=l1+Math.atan2(Math.sin(t)*Math.sin(dl)*Math.cos(p1),Math.cos(dl)-Math.sin(p1)*Math.sin(p2));return [(deg(l2)+540)%360-180,deg(p2)];}
+function circle(c,r,n=28){const p=[];for(let i=0;i<=n;i++)p.push(dest(c,i*360/n,r));return p;}
+function square(c,r){return [45,135,225,315,45].map(b=>dest(c,b,r));}
+const angDiff=(a,b)=>((b-a+540)%360)-180;
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+const fmtDist=m=>m>=1000?(m/1000).toFixed(2)+' km':Math.round(m)+' m';
+const fmtTime=ms=>{ms=Math.max(0,ms);const s=Math.ceil(ms/1000);return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');};
+const F=(g,p)=>({type:'Feature',geometry:g,properties:p});
+const poly=r=>({type:'Polygon',coordinates:[r]});
+
+/* ============ Zapis ============ */
+const KEY='courier2099_v2';
+let S={credits:60,up:{boots:false,decrypt:false},bat:0,sound:true,haptic:true,low:false,cam:'compass',maxD:1000,dur:50,last:null};
+try{const raw=localStorage.getItem(KEY);if(raw){const o=JSON.parse(raw);S=Object.assign(S,o);S.up=Object.assign({boots:false,decrypt:false},o.up||{});}}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}};
+
+/* ============ Dźwięk / haptyka ============ */
+let AC=null;
+function initAudio(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC&&AC.state==='suspended')AC.resume();}catch(e){}}
+function beep(f,d=.1,type='square',v=.05,delay=0){if(!S.sound||!AC)return;try{const t=AC.currentTime+delay,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+d+.02);}catch(e){}}
+const SFX={
+ tap:()=>beep(880,.05,'square',.03),
+ near:()=>beep(1250,.07,'sine',.05),
+ ok:()=>[523,659,784,1047].forEach((f,i)=>beep(f,.13,'square',.05,i*.09)),
+ bad:()=>{beep(150,.35,'sawtooth',.07);beep(110,.35,'sawtooth',.07,.12);},
+ alarm:()=>{for(let i=0;i<5;i++)beep(i%2?620:940,.15,'sawtooth',.05,i*.17);},
+ relay:()=>[880,1320].forEach((f,i)=>beep(f,.12,'triangle',.06,i*.1)),
+ win:()=>[392,523,659,784,1047,1319].forEach((f,i)=>beep(f,.16,'square',.05,i*.1)),
+ lose:()=>[400,330,260,180].forEach((f,i)=>beep(f,.25,'sawtooth',.06,i*.18))
+};
+const vib=p=>{if(S.haptic&&navigator.vibrate){try{navigator.vibrate(p);}catch(e){}}};
+
+/* ============ Mapa 2.5D ============ */
+const ATTR='<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
+const roadClass=a=>['match',['get','class'],a,true,false];
+const mapStyle={version:8,
+ sources:{omt:{type:'vector',url:'https://tiles.openfreemap.org/planet',attribution:ATTR}},
+ layers:[
+  {id:'bg',type:'background',paint:{'background-color':'#05060d'}},
+  {id:'landcover',type:'fill',source:'omt','source-layer':'landcover',paint:{'fill-color':'#07150f','fill-opacity':.8}},
+  {id:'park',type:'fill',source:'omt','source-layer':'park',paint:{'fill-color':'#08180f','fill-opacity':.8}},
+  {id:'landuse',type:'fill',source:'omt','source-layer':'landuse',filter:roadClass(['park','cemetery','pitch','playground','garden','grass']),paint:{'fill-color':'#08180f','fill-opacity':.8}},
+  {id:'water',type:'fill',source:'omt','source-layer':'water',paint:{'fill-color':'#04142a'}},
+  {id:'road-major-glow',type:'line',source:'omt','source-layer':'transportation',filter:roadClass(['motorway','trunk','primary','secondary','tertiary']),
+   layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#ff2bd6','line-opacity':.18,'line-blur':4,'line-width':['interpolate',['exponential',1.5],['zoom'],13,2,17,12,20,34]}},
+  {id:'road-major',type:'line',source:'omt','source-layer':'transportation',filter:roadClass(['motorway','trunk','primary','secondary','tertiary']),
+   layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#ff2bd6','line-opacity':.7,'line-width':['interpolate',['exponential',1.5],['zoom'],13,.6,17,3.5,20,12]}},
+  {id:'road-minor',type:'line',source:'omt','source-layer':'transportation',filter:roadClass(['minor','service','track']),
+   layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#0f6a86','line-opacity':.85,'line-width':['interpolate',['exponential',1.5],['zoom'],13,.4,17,2.4,20,9]}},
+  {id:'road-path',type:'line',source:'omt','source-layer':'transportation',filter:roadClass(['path','pedestrian']),
+   paint:{'line-color':'#00f0ff','line-opacity':.45,'line-dasharray':[2,2],'line-width':['interpolate',['linear'],['zoom'],14,.5,18,2]}},
+  {id:'bld-flat',type:'fill',source:'omt','source-layer':'building',minzoom:14,layout:{visibility:'none'},paint:{'fill-color':'#14223e','fill-opacity':.9}},
+  {id:'bld-3d',type:'fill-extrusion',source:'omt','source-layer':'building',minzoom:14,paint:{
+    'fill-extrusion-color':['interpolate',['linear'],['coalesce',['get','render_height'],6],0,'#0c1322',25,'#14213f',60,'#26184c',140,'#3f1458'],
+    'fill-extrusion-height':['coalesce',['get','render_height'],6],
+    'fill-extrusion-base':['coalesce',['get','render_min_height'],0],
+    'fill-extrusion-opacity':.94,'fill-extrusion-vertical-gradient':true}},
+  {id:'bld-edge',type:'line',source:'omt','source-layer':'building',minzoom:15,paint:{'line-color':'#00f0ff','line-opacity':.5,'line-width':['interpolate',['linear'],['zoom'],15,.3,18,1.3]}}
+ ]};
+
+let menuCenter=S.last||[21.0122,52.2297];
+const map=new maplibregl.Map({container:'map',style:mapStyle,center:menuCenter,zoom:16.6,pitch:60,bearing:20,maxPitch:75,
+  interactive:false,fadeDuration:0,attributionControl:{compact:true}});
+let mapReady=false;
+const EMPTY={type:'FeatureCollection',features:[]};
+map.on('load',()=>{
+ map.addSource('zones',{type:'geojson',data:EMPTY});
+ map.addSource('objs',{type:'geojson',data:EMPTY});
+ map.addLayer({id:'zones-fill',type:'fill',source:'zones',paint:{'fill-color':['get','color'],'fill-opacity':['get','fillOp']}});
+ map.addLayer({id:'zones-line',type:'line',source:'zones',paint:{'line-color':['get','color'],'line-width':2.5,'line-opacity':['get','op']}});
+ map.addLayer({id:'objs-3d',type:'fill-extrusion',source:'objs',paint:{'fill-extrusion-color':['get','color'],'fill-extrusion-height':['get','h'],'fill-extrusion-base':['get','b'],'fill-extrusion-opacity':.92}});
+ mapReady=true;applyGfx();
+});
+map.on('error',e=>{console.warn('map error',e&&e.error&&e.error.message);});
+
+function applyGfx(){
+ if(!mapReady)return;
+ map.setLayoutProperty('bld-3d','visibility',S.low?'none':'visible');
+ map.setLayoutProperty('bld-flat','visibility',S.low?'visible':'none');
+ $('#bGfx').textContent='GRAFIKA: '+(S.low?'NISKA':'WYSOKA');
+}
+
+/* Znaczniki HTML */
+const labels={};
+function syncLabels(list){
+ const ids=new Set(list.map(l=>l.id));
+ for(const id in labels){if(!ids.has(id)){labels[id].m.remove();delete labels[id];}}
+ for(const l of list){
+  let o=labels[l.id];
+  if(!o){const el=document.createElement('div');el.className='lbl '+l.cls;el.innerHTML='<span></span><i></i>';
+   const m=new maplibregl.Marker({element:el,anchor:'bottom'}).setLngLat(l.pos).addTo(map);o=labels[l.id]={m,el,txt:'',cls:l.cls};}
+  o.m.setLngLat(l.pos);
+  if(o.txt!==l.text){o.el.firstChild.textContent=l.text;o.txt=l.text;}
+  if(o.cls!==l.cls){o.el.className='lbl '+l.cls;o.cls=l.cls;}
+ }
+}
+const pEl=document.createElement('div');pEl.className='player';
+pEl.innerHTML='<svg viewBox="0 0 50 50" width="44" height="44"><circle cx="25" cy="25" r="22" fill="rgba(0,240,255,.12)" stroke="rgba(0,240,255,.5)" stroke-width="1.5"/><polygon points="25,4 39,41 25,33 11,41" fill="#00f0ff" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" style="filter:drop-shadow(0 0 5px #00f0ff)"/></svg>';
+const pMarker=new maplibregl.Marker({element:pEl,rotationAlignment:'map',pitchAlignment:'map'}).setLngLat(menuCenter);
+
+/* ============ Stan gry ============ */
+const G={active:false,sim:false,base:null,targets:[],idx:0,endTime:0,drone:null,relay:null,nextEvent:0,hack:null,earned:0,hacked:0,nextPing:0,dirty:true};
+let pos=null,disp=null,moveHeading=0,lastHeadPos=null,simHeading=0,accuracy=null;
+let compass=null,compassTs=0,orientBound=false,camBrg=20,camMode=S.cam||'compass';
+let watchId=null,wakeLock=null,onFirst=null;
+const keys={up:false,down:false,left:false,right:false};
+const interactR=()=>S.up.boots?40:20;
+
+function toast(msg,kind='',ms=3500){const t=$('#toast');t.textContent=msg;t.className='show '+kind;clearTimeout(toast._t);toast._t=setTimeout(()=>{t.className=kind;},ms);}
+function addTime(ms){G.endTime+=ms;}
+function addCred(n){S.credits=Math.max(0,S.credits+n);if(n>0)G.earned+=n;save();}
+
+/* ============ Pozycja ============ */
+function onFix(lat,lng,acc,hdg,spd){
+ const p=[lng,lat];
+ if(!lastHeadPos)lastHeadPos=p;
+ if(hdg!=null&&!isNaN(hdg)&&spd>0.6){moveHeading=hdg;lastHeadPos=p;}
+ else if(dist(lastHeadPos,p)>4){moveHeading=bearing(lastHeadPos,p);lastHeadPos=p;}
+ pos=p;accuracy=acc;
+ if(!disp)disp=p.slice();
+ if(onFirst){const f=onFirst;onFirst=null;f();}
+}
+function onGeo(g){const c=g.coords;onFix(c.latitude,c.longitude,c.accuracy,c.heading,c.speed||0);}
+function onOrient(e){
+ let h=null;
+ if(e.webkitCompassHeading!=null)h=e.webkitCompassHeading;
+ else if(e.absolute===true&&e.alpha!=null)h=(360-e.alpha)%360;
+ if(h==null||isNaN(h))return;
+ compass=compass==null?h:(compass+angDiff(compass,h)*0.15+360)%360;
+ compassTs=performance.now();
+}
+async function askOrientation(){
+ try{if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){await DeviceOrientationEvent.requestPermission();}}catch(e){}
+ if(!orientBound){addEventListener('deviceorientationabsolute',onOrient,true);addEventListener('deviceorientation',onOrient,true);orientBound=true;}
+}
+const compassFresh=()=>compass!=null&&performance.now()-compassTs<2500;
+function curHeading(){
+ if(G.sim)return simHeading;
+ if(camMode==='compass'&&compassFresh())return compass;
+ return moveHeading;
+}
+
+/* ============ Cele ============ */
+const NAMES=['WĘZEŁ ALFA','WĘZEŁ BETA','WĘZEŁ GAMMA','WĘZEŁ DELTA'];
+function genTargets(base,n,maxD){
+ const a0=rnd(0,360),list=[];
+ for(let i=0;i<n;i++){
+  const brg=(a0+i*360/n+rnd(-25,25)+360)%360;
+  const d=rnd(500,Math.max(520,maxD));
+  list.push({pos:dest(base,brg,d),brg,d,name:NAMES[i]});
+ }
+ return list;
+}
+function rerollTarget(){
+ if(!G.active||G.idx>=G.targets.length)return toast('Ten przycisk działa tylko dla celów, nie dla bazy','warn');
+ const t=G.targets[G.idx];
+ t.brg=(t.brg+rnd(-55,55)+360)%360;
+ t.d=Math.min(S.maxD,Math.max(500,t.d*rnd(.8,1.2)));
+ t.pos=dest(G.base,t.brg,t.d);
+ addTime(-60000);G.dirty=true;
+ toast('Przelosowano cel · −1:00','warn');SFX.bad();
+}
+
+/* ============ Start / koniec misji ============ */
+function waitFirstFix(){
+ return new Promise((res,rej)=>{
+  let done=false;
+  const t=setTimeout(()=>{if(!done){done=true;onFirst=null;rej(new Error('timeout'));}},25000);
+  onFirst=()=>{if(!done){done=true;clearTimeout(t);res();}};
+  watchId=navigator.geolocation.watchPosition(onGeo,e=>{if(!done){done=true;clearTimeout(t);onFirst=null;rej(e);}},{enableHighAccuracy:true,maximumAge:1000,timeout:25000});
+ });
+}
+async function startMission(sim){
+ initAudio();
+ const btn=$('#bStart');
+ G.sim=sim;
+ if(!sim){
+  await askOrientation();
+  if(!navigator.geolocation){toast('Brak obsługi GPS w tej przeglądarce','bad');return;}
+  btn.disabled=true;btn.textContent='SZUKAM SYGNAŁU GPS…';
+  try{pos=null;disp=null;lastHeadPos=null;await waitFirstFix();}
+  catch(e){btn.disabled=false;btn.textContent='▶ START MISJI (GPS)';
+   if(watchId!=null){navigator.geolocation.clearWatch(watchId);watchId=null;}
+   alert('Nie udało się uzyskać pozycji GPS. Sprawdź uprawnienia lokalizacji (HTTPS jest wymagany) albo użyj trybu testowego.');return;}
+  btn.disabled=false;btn.textContent='▶ START MISJI (GPS)';
+ }else{
+  pos=[21.0122,52.2297];disp=pos.slice();lastHeadPos=pos;simHeading=0;moveHeading=0;accuracy=5;
+ }
+ G.active=true;G.base=pos.slice();G.idx=0;G.earned=0;G.hacked=0;G.drone=null;G.relay=null;G.hack=null;
+ G.targets=genTargets(G.base,Math.random()<.5?3:4,S.maxD);
+ G.endTime=performance.now()+S.dur*60000;
+ G.nextEvent=performance.now()+rnd(150000,300000)*(sim?.2:1);
+ S.last=G.base.slice();save();
+ try{if(navigator.wakeLock)wakeLock=await navigator.wakeLock.request('screen');}catch(e){}
+ $('#menu').classList.add('hide');$('#hud').classList.remove('hide');
+ $('#simpad').classList.toggle('hide',!sim);$('#simtools').classList.toggle('hide',!sim);
+ map.jumpTo({center:disp,zoom:17.3,pitch:S.low?48:62});
+ G.dirty=true;SFX.ok();vib(120);
+ toast('MISJA ROZPOCZĘTA — cel 1: '+G.targets[0].name,'good',4500);
+}
+function endMission(success,reason){
+ if(!G.active)return;
+ G.active=false;closeHack();
+ if(watchId!=null){navigator.geolocation.clearWatch(watchId);watchId=null;}
+ try{if(wakeLock){wakeLock.release();wakeLock=null;}}catch(e){}
+ syncLabels([]);if(mapReady){map.getSource('zones').setData(EMPTY);map.getSource('objs').setData(EMPTY);}
+ $('#hud').classList.add('hide');
+ menuCenter=G.base.slice();
+ const left=Math.max(0,G.endTime-performance.now());
+ $('#endTitle').innerHTML=success?'DOSTAWA <span>ZAKOŃCZONA</span>':'MISJA <span>NIEUDANA</span>';
+ $('#endSub').textContent=reason||'';
+ $('#endStats').innerHTML=
+  `<div class="row"><span>Zhakowane węzły</span><b>${G.hacked}/${G.targets.length}</b></div>`+
+  `<div class="row"><span>Pozostały czas</span><b>${fmtTime(left)}</b></div>`+
+  `<div class="row"><span>Zarobione w tej misji</span><span class="big">+${G.earned}¢</span></div>`+
+  `<div class="row"><span>Razem kredytów</span><span class="big">${S.credits}¢</span></div>`;
+ $('#end').classList.remove('hide');
+ success?SFX.win():SFX.lose();vib(success?[100,60,100,60,300]:[400]);
+}
+
+/* ============ Hakowanie ============ */
+const CODES=['1C','55','BD','E9','7A','FF'];
+function openHack(){
+ if(G.hack)return;
+ const L=S.up.decrypt?3:4;
+ const h={seq:Array.from({length:L},()=>pick(CODES)),grid:shuffle([...CODES,...CODES]),step:0,total:S.up.decrypt?28:20};
+ h.t=h.total;h.iv=setInterval(()=>{h.t-=.1;if(h.t<=0)failHack();else renderHackBar();},100);
+ G.hack=h;
+ $('#hackInfo').textContent=S.up.decrypt?'Odszyfrowywacz aktywny: podświetla właściwe kody.':'Stuknij kody w podanej kolejności.';
+ $('#hack').classList.remove('hide');$('#act').classList.add('hide');
+ renderHack();SFX.tap();
+}
+function renderHack(){
+ const h=G.hack;if(!h)return;
+ $('#seq').innerHTML=h.seq.map((c,i)=>`<div class="tok ${i<h.step?'done':i===h.step?'cur':''}">${c}</div>`).join('');
+ const g=$('#grid');g.innerHTML='';
+ h.grid.forEach(c=>{
+  const b=document.createElement('button');b.className='cell'+(S.up.decrypt&&c===h.seq[h.step]?' hint':'');b.textContent=c;
+  b.onclick=()=>hackTap(c,b);g.appendChild(b);
+ });
+ renderHackBar();
+}
+function renderHackBar(){const h=G.hack;if(!h)return;$('#bar i').style.width=Math.max(0,h.t/h.total*100)+'%';$('#hackT').textContent='CZAS: '+Math.max(0,h.t).toFixed(1)+' s';}
+function hackTap(c,btn){
+ const h=G.hack;if(!h)return;
+ if(c===h.seq[h.step]){
+  h.step++;SFX.tap();vib(20);
+  if(h.step>=h.seq.length)return winHack();
+  renderHack();
+ }else{
+  h.step=0;h.t-=2;btn.classList.add('err');SFX.bad();vib(80);
+  setTimeout(()=>{if(G.hack)renderHack();},180);
+ }
+}
+function closeHack(){if(G.hack){clearInterval(G.hack.iv);G.hack=null;}$('#hack').classList.add('hide');}
+function winHack(){
+ const left=G.hack.t;closeHack();
+ const reward=35+Math.ceil(left);
+ addCred(reward);G.hacked++;G.idx++;G.dirty=true;
+ SFX.ok();vib([60,40,60]);
+ toast(G.idx>=G.targets.length?`WĘZŁÓW ZHAKOWANO · +${reward}¢ · WRACAJ DO BAZY!`:`WĘZEŁ ZHAKOWANY · +${reward}¢ · następny: ${G.targets[G.idx].name}`,'good',4500);
+}
+function failHack(){
+ closeHack();addTime(-60000);SFX.bad();vib([300]);
+ toast('WŁAMANIE NIEUDANE · −1:00','bad');
+}
+
+/* ============ Zdarzenia losowe ============ */
+function spawnDrone(){
+ G.drone={pos:dest(pos,rnd(0,360),220),born:performance.now(),warned:false};
+ toast('⚠ DRON PATROLOWY NAMIERZA CIĘ — nie stój w miejscu!','bad',4500);SFX.alarm();vib([200,100,200]);G.dirty=true;
+}
+function spawnRelay(){
+ G.relay={pos:dest(pos,rnd(0,360),rnd(120,250)),expires:performance.now()+180000};
+ toast('⚡ PRZEKAŹNIK! Dotrzyj do niego w 3 min: +25¢ i +1:00','warn',4500);SFX.relay();vib([80,60,80]);G.dirty=true;
+}
+
+/* ============ Pętla gry ============ */
+let lastT=performance.now(),acc4=0,acc8=0,frame=0;
+function tick(now){
+ requestAnimationFrame(tick);
+ const dt=Math.min(.1,(now-lastT)/1000);lastT=now;frame++;
+ if(!mapReady)return;
+ if(S.low&&frame%2)return;
+ if(!G.active){
+  camBrg=(camBrg+dt*2.5)%360;
+  map.jumpTo({center:menuCenter,bearing:camBrg,pitch:60,zoom:16.6,padding:{top:0,bottom:0,left:0,right:0}});
+  return;
+ }
+ /* symulacja ruchu */
+ if(G.sim){
+  if(keys.left)simHeading=(simHeading-100*dt+360)%360;
+  if(keys.right)simHeading=(simHeading+100*dt)%360;
+  const sp=(keys.up?1:0)-(keys.down?1:0);
+  if(sp){const np=dest(pos,simHeading,sp*14*dt);moveHeading=simHeading;onFix(np[1],np[0],5,null,0);}
+ }
+ if(!pos)return;
+ /* kamera */
+ const k=1-Math.exp(-dt*5);
+ disp[0]+=(pos[0]-disp[0])*k;disp[1]+=(pos[1]-disp[1])*k;
+ const tgtBrg=camMode==='north'?0:curHeading();
+ camBrg=(camBrg+angDiff(camBrg,tgtBrg)*(1-Math.exp(-dt*3))+360)%360;
+ map.jumpTo({center:disp,bearing:camBrg,pitch:S.low?48:62,zoom:17.3,padding:{top:Math.round(innerHeight*.42),bottom:0,left:0,right:0}});
+ pMarker.setLngLat(disp);pMarker.setRotation(curHeading());
+ if(!pMarker._added){pMarker.addTo(map);pMarker._added=true;}
+
+ /* czas */
+ const left=G.endTime-now;
+ if(left<=0){endMission(false,'Bateria GPS wyczerpana.');return;}
+
+ /* zdarzenia */
+ if(now>G.nextEvent&&!G.drone&&!G.relay&&!G.hack){
+  Math.random()<.6?spawnDrone():spawnRelay();
+  G.nextEvent=now+rnd(180000,360000)*(G.sim?.2:1);
+ }
+ if(G.drone){
+  const d=G.drone,br=bearing(d.pos,pos);d.pos=dest(d.pos,br,1.5*dt*(G.sim?3:1));
+  const dd=dist(d.pos,pos);
+  if(dd<80&&!d.warned){d.warned=true;toast('⚠ DRON W ZASIĘGU — ruszaj się!','bad');SFX.alarm();vib([150,80,150]);}
+  if(dd<16){G.drone=null;addTime(-45000);addCred(-15);toast('DRON CIĘ SKANUJE · −0:45 i −15¢','bad',4000);SFX.bad();vib([500]);G.dirty=true;}
+  else if(now-d.born>150000){G.drone=null;toast('Dron zgubił twój sygnał','good');G.dirty=true;}
+ }
+ if(G.relay){
+  if(dist(G.relay.pos,pos)<=interactR()){G.relay=null;addCred(25);addTime(60000);toast('PRZEKAŹNIK PRZEJĘTY · +25¢ · +1:00','good',4000);SFX.ok();vib([60,40,60]);G.dirty=true;}
+  else if(now>G.relay.expires){G.relay=null;toast('Przekaźnik wygasł','warn');G.dirty=true;}
+ }
+
+ /* sygnał zbliżeniowy */
+ const objPos=G.idx<G.targets.length?G.targets[G.idx].pos:G.base;
+ const dObj=dist(pos,objPos);
+ if(dObj<120&&!G.hack&&now>G.nextPing){SFX.near();G.nextPing=now+Math.min(3000,Math.max(350,dObj*12));}
+
+ /* HUD 4 Hz */
+ acc4+=dt;
+ if(acc4>.25){acc4=0;
+  $('#timer').textContent=fmtTime(left);$('#timer').classList.toggle('low',left<300000);
+  $('#cred').textContent=S.credits+'¢';
+  const fin=G.idx>=G.targets.length;
+  $('#obj').firstChild.nodeValue=fin?'POWRÓT DO BAZY':`CEL ${G.idx+1}/${G.targets.length} · ${G.targets[G.idx].name}`;
+  $('#obj small').textContent=`zasięg interakcji: ${interactR()} m`;
+  $('#dist').textContent=fmtDist(dObj);
+  $('#dname').textContent=fin?'BAZA':G.targets[G.idx].name;
+  $('#arrow').style.transform=`rotate(${bearing(pos,objPos)-camBrg}deg)`;
+  $('#gps').textContent=G.sim?'SYMULACJA':(accuracy!=null?'GPS ±'+Math.round(accuracy)+' m':'GPS…');
+  $('#bBat').textContent='🔋 ×'+S.bat;
+  const near=dObj<=interactR();
+  const act=$('#act');
+  if(near&&!G.hack){act.classList.remove('hide');act.textContent=fin?'📦 DOSTARCZ PACZKĘ I ZAKOŃCZ':'⌁ HAKUJ WĘZEŁ';
+   if(!act._was){act._was=true;SFX.ok();vib([40,30,40]);}}
+  else{act.classList.add('hide');act._was=false;}
+ }
+
+ /* Nakładki mapy 8 Hz */
+ acc8+=dt;
+ if(acc8>.125||G.dirty){acc8=0;G.dirty=false;renderOverlay(now);}
+}
+function renderOverlay(now){
+ const objs=[],zones=[],lbl=[];
+ const r=interactR(),fin=G.idx>=G.targets.length;
+ objs.push(F(poly(circle(G.base,6)),{color:'#00f0ff',h:fin?70:14,b:0}));
+ zones.push(F(poly(circle(G.base,r)),{color:'#00f0ff',fillOp:fin?.18:.05,op:fin?.9:.4}));
+ lbl.push({id:'base',pos:G.base,text:'BAZA',cls:'cy'});
+ G.targets.forEach((t,i)=>{
+  if(i<G.idx)return;const cur=i===G.idx;
+  objs.push(F(poly(circle(t.pos,6)),{color:cur?'#ff2bd6':'#6d1a62',h:cur?70:18,b:0}));
+  if(cur)zones.push(F(poly(circle(t.pos,r)),{color:'#ff2bd6',fillOp:.2,op:.95}));
+  lbl.push({id:'t'+i,pos:t.pos,text:`${i+1} · ${t.name}`,cls:cur?'pk':'dim'});
+ });
+ if(G.relay){
+  objs.push(F(poly(circle(G.relay.pos,5)),{color:'#fff200',h:45,b:0}));
+  zones.push(F(poly(circle(G.relay.pos,r)),{color:'#fff200',fillOp:.15,op:.9}));
+  lbl.push({id:'relay',pos:G.relay.pos,text:'⚡ RELAY '+fmtTime(G.relay.expires-now),cls:'yl'});
+ }
+ if(G.drone){
+  objs.push(F(poly(square(G.drone.pos,2.6)),{color:'#ff2a3d',h:34,b:28}));
+  zones.push(F(poly(circle(G.drone.pos,16)),{color:'#ff2a3d',fillOp:.18,op:.9}));
+  lbl.push({id:'drone',pos:G.drone.pos,text:'⚠ DRON '+Math.round(dist(G.drone.pos,pos))+' m',cls:'rd'});
+ }
+ map.getSource('objs').setData({type:'FeatureCollection',features:objs});
+ map.getSource('zones').setData({type:'FeatureCollection',features:zones});
+ map.setPaintProperty('zones-line','line-width',2.2+Math.sin(now/260)*1.2);
+ syncLabels(lbl);
+}
+requestAnimationFrame(tick);
+
+/* ============ Sklep ============ */
+const ITEMS=[
+ {id:'boots',name:'Cyber-Buty',price:80,desc:'Zasięg interakcji 20 → 40 m (na stałe).',perm:true},
+ {id:'decrypt',name:'Odszyfrowywacz',price:70,desc:'Hakowanie: krótsza sekwencja, +8 s i podświetlanie kodów (na stałe).',perm:true},
+ {id:'bat',name:'Bateria GPS',price:45,desc:'+10 min czasu misji. Użyj w trakcie misji (maks. 3 w zapasie).',perm:false}
+];
+function renderShop(){
+ $('#sCred').textContent=S.credits+'¢';
+ $('#items').innerHTML='';
+ ITEMS.forEach(it=>{
+  const own=it.perm&&S.up[it.id];
+  const full=!it.perm&&S.bat>=3;
+  const d=document.createElement('div');d.className='item'+(own?' own':'');
+  d.innerHTML=`<div><b>${it.name}</b>${it.id==='bat'?` (masz: ${S.bat})`:''}<small>${it.desc}</small></div>`;
+  const b=document.createElement('button');
+  b.textContent=own?'MASZ':`${it.price}¢`;b.disabled=own||full||S.credits<it.price;
+  b.onclick=()=>{if(S.credits<it.price)return;S.credits-=it.price;if(it.perm)S.up[it.id]=true;else S.bat++;save();SFX.ok();renderShop();updateMenu();};
+  d.appendChild(b);$('#items').appendChild(d);
+ });
+}
+function updateMenu(){
+ $('#mCred').textContent=S.credits+'¢';
+ $('#mUp').textContent=`Ulepszenia: ${S.up.boots?'Cyber-Buty ✓':'Cyber-Buty ✗'} · ${S.up.decrypt?'Odszyfrowywacz ✓':'Odszyfrowywacz ✗'} · Baterie: ${S.bat}`;
+ $('#selDur').value=S.dur;$('#selDist').value=S.maxD;
+}
+let shopFrom='menu';
+function openShop(from){shopFrom=from;$('#menu').classList.add('hide');$('#end').classList.add('hide');$('#shop').classList.remove('hide');renderShop();}
+function closeShop(){$('#shop').classList.add('hide');$(shopFrom==='end'?'#end':'#menu').classList.remove('hide');updateMenu();}
+
+/* ============ Zdarzenia UI ============ */
+$('#bStart').onclick=()=>startMission(false);
+$('#bSim').onclick=()=>startMission(true);
+$('#bShop').onclick=()=>openShop('menu');
+$('#bEndShop').onclick=()=>openShop('end');
+$('#bShopBack').onclick=closeShop;
+$('#bEndMenu').onclick=()=>{$('#end').classList.add('hide');$('#menu').classList.remove('hide');updateMenu();};
+$('#selDur').onchange=e=>{S.dur=+e.target.value;save();};
+$('#selDist').onchange=e=>{S.maxD=+e.target.value;save();};
+$('#act').onclick=()=>{
+ if(!G.active)return;
+ if(G.idx<G.targets.length)openHack();
+ else{
+  const bonus=40+Math.floor(Math.max(0,G.endTime-performance.now())/60000)*4;
+  addCred(bonus);toast(`+${bonus}¢ za dostawę`,'good');endMission(true,`Wróciłeś do bazy z paczkami. Bonus: +${bonus}¢`);
+ }
+};
+$('#hackCancel').onclick=()=>{closeHack();addTime(-20000);toast('Przerwano · −0:20','warn');};
+$('#bRe').onclick=rerollTarget;
+$('#bBat').onclick=()=>{
+ if(!G.active)return;
+ if(S.bat<=0)return toast('Brak baterii — kup w sklepie przed misją','warn');
+ S.bat--;save();addTime(600000);toast('BATERIA GPS WYMIENIONA · +10:00','good');SFX.ok();
+};
+$('#bSnd').onclick=()=>{S.sound=!S.sound;save();$('#bSnd').textContent='DŹWIĘK: '+(S.sound?'WŁ':'WYŁ');initAudio();SFX.tap();};
+$('#bGfx').onclick=()=>{S.low=!S.low;save();applyGfx();};
+const CAMS=['compass','move','north'],CAMN={compass:'KOMPAS',move:'RUCH',north:'PÓŁNOC'};
+$('#bCam').onclick=()=>{camMode=CAMS[(CAMS.indexOf(camMode)+1)%3];S.cam=camMode;save();$('#bCam').textContent='KAMERA: '+CAMN[camMode];};
+$('#bCam').textContent='KAMERA: '+CAMN[camMode];
+$('#bSnd').textContent='DŹWIĘK: '+(S.sound?'WŁ':'WYŁ');
+
+/* Sterowanie symulacją */
+document.querySelectorAll('#simpad button').forEach(b=>{
+ const k=b.dataset.k;
+ const on=e=>{e.preventDefault();keys[k]=true;},off=e=>{e.preventDefault();keys[k]=false;};
+ b.addEventListener('pointerdown',on);b.addEventListener('pointerup',off);b.addEventListener('pointerleave',off);b.addEventListener('pointercancel',off);
+});
+const KMAP={ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right'};
+addEventListener('keydown',e=>{if(KMAP[e.code]){keys[KMAP[e.code]]=true;e.preventDefault();}});
+addEventListener('keyup',e=>{if(KMAP[e.code])keys[KMAP[e.code]]=false;});
+$('#sDrone').onclick=()=>{if(G.active&&pos&&!G.drone)spawnDrone();};
+$('#sRelay').onclick=()=>{if(G.active&&pos&&!G.relay)spawnRelay();};
+$('#sTp').onclick=()=>{
+ if(!G.active)return;
+ const t=G.idx<G.targets.length?G.targets[G.idx].pos:G.base;
+ const np=dest(t,rnd(0,360),12);onFix(np[1],np[0],5,null,0);
+};
+
+updateMenu();
+</script>
+</body>
+</html>
