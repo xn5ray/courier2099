@@ -96,9 +96,9 @@ Wystarczy wrzucić zmiany do repozytorium na GitHubie — workflow `.github/work
 Każdy build dokłada do release plik `bundle.zip` (pliki gry: HTML/CSS/JS). Przy starcie aplikacja (`js/updater.js`) pyta GitHuba o najnowszy release; jeśli ma wyższy numer niż ta wersja (`js/build-info.js`, ustawiany przez workflow), pobiera paczkę w tle i przeładowuje grę z nową wersją — bez ręcznej instalacji APK. Gdy trwa misja, nowa wersja wejdzie przy następnym uruchomieniu.
 Działa to tylko dla zmian w plikach gry. **Zmiana natywna** (nowa wtyczka Capacitora, uprawnienia w `patch-android.js`) nadal wymaga zainstalowania nowego APK. Pierwszy APK z tą funkcją trzeba zainstalować ręcznie, dopiero kolejne wersje aktualizują się same. Jeśli nowa wersja się wysypie, wtyczka sama wraca do poprzedniej.
 
-## Chmura punktów (Firebase)
+## Chmura punktów i zapisu gry (Firebase)
 
-Punkty z edytora leżą w telefonie (`localStorage`), więc znikają przy odinstalowaniu aplikacji. Chmura trzyma ich kopię i przywraca po reinstalacji.
+Punkty z edytora leżą w telefonie (`localStorage`), więc znikają przy odinstalowaniu aplikacji. Chmura trzyma ich kopię i przywraca po reinstalacji. Od teraz synchronizuje też **zapis gry** (patrz niżej).
 Działa bez logowania: dostęp daje **kod synchronizacji** (16 znaków, losowy) — zapisz go; po reinstalacji wpisz go w edytorze (☁ CHMURA).
 
 **Jednorazowa konfiguracja:**
@@ -124,5 +124,6 @@ Działa bez logowania: dostęp daje **kod synchronizacji** (16 znaków, losowy) 
 4. Skopiuj adres bazy (zakładka **Data**, np. `https://twoj-projekt-default-rtdb.europe-west1.firebasedatabase.app`) do `CLOUD_URL` w `js/data/config.js`, wrzuć na GitHuba — nowy APK ma już chmurę.
 
 **Jak to działa:** każda zmiana w edytorze jest wysyłana po ok. 1,5 s; przy starcie i otwarciu edytora gra porównuje znaczniki czasu (`t`) i wczytuje nowszą wersję. Gdy chmura jest nowsza, a masz niewysłane zmiany, gra pyta, którą wersję zostawić.
-**Synchronizowane są tylko punkty z edytora** (nie kredyty ani kryjówka — to nadal `save` w `localStorage`).
+**Zapis gry w chmurze:** ten sam kod i ta sama baza (reguły bez zmian — w dokumencie nadal jest `t`). Synchronizowane: ₵, złom, chłodziwo, komponenty, rekord i liczba misji, ulepszenia, wszczepy, Kryjówka, obszary, czas serwera danych. **Nie** synchronizujemy ustawień telefonu (dźwięk, wibracje, symulacja), trwającej misji ani tablicy szybkich misji.
+Każda zmiana zapisu jest wysyłana po ok. 4 s (i od razu przy wyjściu z aplikacji); przy starcie, powrocie do aplikacji i powrocie sieci gra sprawdza, czy drugi telefon czegoś nie zmienił. Gdy zapis zmieniono w dwóch miejscach, gra pyta, którą wersję zostawić — nigdy nie nadpisuje po cichu. Przed wczytaniem zapisu z chmury stary zapis zostaje w telefonie jako kopia (`courier2099.save.backup.v1` w `localStorage`). W trakcie misji zapis z chmury nie jest wczytywany. Dane z chmury są walidowane (`cloudCleanSave` w `js/cloud.js`) — dodając nowe pole do `DEF`/ulepszeń dopisz je do `SYNC_KEYS`/`cloudCleanSave`, a nowy poziom ulepszenia do `UP_MAX`.
 **Uwaga:** zapis jest na kod, nie na konto — kto zna kod, może zmienić twoje punkty. Nie udostępniaj go.
