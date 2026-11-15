@@ -46,7 +46,7 @@
   /* pasek stanu: odświeżany co 0,5 s niezależnie od gry */
   setInterval(() => {
     if (!ui()) return;
-    let s = 'build ' + (window.BUILD_NUM || 0);
+    let s = 'build ' + (window.BUILD_NUM || 0) + (window.OTA_STATUS ? ' | OTA: ' + window.OTA_STATUS : '');
     try {
       s += typeof M === 'undefined' ? ' | M:?' : ' | M:' + (M ? 'tak' : 'nie');
       s += typeof tickT === 'undefined' ? ' | tickT:?' : ' | tickT:' + tickT;

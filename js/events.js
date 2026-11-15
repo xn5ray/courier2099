@@ -2,7 +2,7 @@
 /* WYDARZENIA i PĘTLA: losowe zdarzenia w trakcie misji (patrol, dead drop, ...) oraz tick() co sekundę. */
 
 /* ================= WYDARZENIA ================= */
-function setNextEvent() { M.nextWalk = (M.walkMs || 0) + rand(420000, 720000) * (M.night ? 0.6 : 1); M.evClock = Date.now(); }   // 7-12 min MARSZU
+function setNextEvent() { M.nextWalk = (M.walkMs || 0) + rand(420000, 720000) / EVENT_FREQ * (M.night ? 0.6 : 1); M.evClock = Date.now(); }   // 7-12 min MARSZU (dzielone przez EVENT_FREQ)
 function spawnEvent(force) {
   if (!pos || M.event) return;
   const g = goal(), dg = dist(pos, g), now = Date.now();
@@ -111,7 +111,7 @@ function tick() {
   if (M.event) {
     evTick();
     if (M.event && now >= M.event.endsAt) { const x = EV_END[M.event.type] || []; endEvent(x[0], x[1]); }
-  } else if (!M.quick && ((M.walkMs || 0) >= M.nextWalk || now - M.evClock > 13 * 60000) && !mgActive && pos) spawnEvent();   // awaryjnie: min. co 13 min
+  } else if (!M.quick && ((M.walkMs || 0) >= M.nextWalk || now - M.evClock > 13 * 60000 / EVENT_FREQ) && !mgActive && pos) spawnEvent();   // awaryjnie: min. co 13 min
   if (M && M.quick) quickTick(now);
   if (M && save.imp.kin && pos) {   // bufory kinetyczne: 10 min szybkiego, równego marszu = +3 złomu
     if (spd >= 1.1) M.kin = (M.kin || 0) + 1; else if (spd < 0.5) M.kin = 0;

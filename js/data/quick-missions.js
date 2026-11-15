@@ -16,7 +16,7 @@
      arriveToast       (opcjonalnie) komunikat przy starcie minigry
      dialog, dialogOk  (opcjonalnie) klucz w QUICK_DIALOGS + napis przycisku — okno rozmowy przed minigrą
      quiet             (opcjonalnie) cichy dojazd: { radius, maxKmh, penalty, cleanBonus } */
-const QUICK_BASE_REWARD = 120;     // ₵ za sam dowieziony cel
+const QUICK_BASE_REWARD = 120 * REWARD_MULT;     // ₵ za sam dowieziony cel
 const QUICK_TIME_BONUS_DIV = 8;    // premia za czas = pozostałe sekundy / tyle
 const QUICK_FAIL_PENALTY = 8;      // domyślna kara (s) za nieudaną minigrę
 
@@ -49,6 +49,9 @@ const QUICK_MISSIONS = {
     steps: [['balance', 'icebreaker']], stepTitle: 'POWER SURGE'
   }
 };
+
+/* Mnożnik nagród (REWARD_MULT z config.js) dla premii za zadanie i czyste podejście. */
+for (const k in QUICK_MISSIONS) { const q = QUICK_MISSIONS[k]; q.reward *= REWARD_MULT; if (q.quiet && q.quiet.cleanBonus) q.quiet.cleanBonus *= REWARD_MULT; }
 
 /* Rozmowy (losowa kwestia z listy). Nowa lista = nowy klucz, potem wpisz go w polu "dialog" misji. */
 const QUICK_DIALOGS = {
