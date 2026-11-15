@@ -1,20 +1,25 @@
 'use strict';
-/* CHMURA PUNKTÓW: kopia punktów z edytora w Firebase Realtime Database (przez REST, bez SDK).
+/* CHMURA: kopia punktów z edytora ORAZ zapisu gry (₵, złom, ulepszenia, Kryjówka, obszary…) w Firebase Realtime Database (przez REST, bez SDK).
    Bez logowania: dostęp daje długi, losowy KOD SYNCHRONIZACJI (zapisz go — po reinstalacji wpisujesz go ponownie).
    Konfiguracja i reguły bazy: CLOUD_URL w js/data/config.js oraz DEVELOPING.md. Ładowany po editor.js. */
 
 const CLOUD_KEY = 'courier2099.cloud.code.v1', CLOUD_DIRTY = 'courier2099.cloud.dirty.v1', CLOUD_BASE = 'courier2099.cloud.base.v1';
 const CLOUD_ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // bez 0/O/1/I, żeby kod dało się przepisać
+const CLOUD_SBASE = 'courier2099.cloud.sbase.v1', CLOUD_SDIRTY = 'courier2099.cloud.sdirty.v1', CLOUD_BACKUP = 'courier2099.save.backup.v1';
+let cloudSTimer = null, cloudSHold = false, cloudSig = '';   // zapis gry: osobny licznik/konflikt niż punkty
 let cloudTimer = null, cloudBusy = false, cloudHold = false;   // cloudHold = konflikt czeka na decyzję (nie nadpisuj chmury)
 
+const cloudReady = () => typeof CLOUD_URL === 'string' && /^https:\/\//.test(CLOUD_URL);   // sama baza skonfigurowana (zapis gry działa też przy wygenerowanym terenie)
 const cloudOn = () => typeof CLOUD_URL === 'string' && /^https:\/\//.test(CLOUD_URL) && homeSrc() !== 'gen';   // chmura trzyma zmiany zestawu ręcznego — przy wygenerowanym wyłączona
 const cloudNorm = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const cloudFmt = c => (c.match(/.{1,4}/g) || []).join('-');
 function cloudCode() { try { return cloudNorm(localStorage.getItem(CLOUD_KEY)); } catch (e) { return ''; } }
-function cloudSetCode(c) { try { if (c) localStorage.setItem(CLOUD_KEY, c); else localStorage.removeItem(CLOUD_KEY); localStorage.removeItem(CLOUD_BASE); } catch (e) {} }
+function cloudSetCode(c) { try { if (c) localStorage.setItem(CLOUD_KEY, c); else localStorage.removeItem(CLOUD_KEY); localStorage.removeItem(CLOUD_BASE); localStorage.removeItem(CLOUD_SBASE); localStorage.removeItem(CLOUD_SDIRTY); } catch (e) {} cloudSHold = false; }
 /* BASE = znacznik czasu wersji chmury, którą ten telefon widział przy ostatniej synchronizacji (do wykrywania cudzych zmian) */
 function cloudBase(v) { try { if (v == null) return Number(localStorage.getItem(CLOUD_BASE)) || 0; localStorage.setItem(CLOUD_BASE, String(v)); } catch (e) {} return 0; }
 function cloudDirty(v) { try { if (v == null) return localStorage.getItem(CLOUD_DIRTY) === '1'; if (v) localStorage.setItem(CLOUD_DIRTY, '1'); else localStorage.removeItem(CLOUD_DIRTY); } catch (e) {} return false; }
+function cloudSBase(v) { try { if (v == null) return Number(localStorage.getItem(CLOUD_SBASE)) || 0; localStorage.setItem(CLOUD_SBASE, String(v)); } catch (e) {} return 0; }
+function cloudSDirty(v) { try { if (v == null) return localStorage.getItem(CLOUD_SDIRTY) === '1'; if (v) localStorage.setItem(CLOUD_SDIRTY, '1'); else localStorage.removeItem(CLOUD_SDIRTY); } catch (e) {} return false; }
 function cloudNewCode() {
   const b = new Uint8Array(16); (window.crypto || window.msCrypto).getRandomValues(b);
   return Array.from(b, x => CLOUD_ALPHA[x % CLOUD_ALPHA.length]).join('');
@@ -58,9 +63,9 @@ function cloudStatus(msg, kind) {
   [el, cl].forEach(x => { if (x) { x.textContent = msg; x.style.color = col; } });
 }
 function cloudIdle() {
-  if (!cloudOn()) return cloudStatus('☁ chmura nieskonfigurowana');
+  if (!cloudReady()) return cloudStatus('☁ chmura nieskonfigurowana');
   const c = cloudCode();
-  cloudStatus(c ? '☁ połączono · ' + cloudFmt(c).slice(0, 4) + '…' + (cloudHold ? ' · KONFLIKT' : cloudDirty() ? ' · czeka na wysłanie' : ' · zsynchronizowano') : '☁ brak kodu — dotknij ☁ CHMURA');
+  cloudStatus(c ? '☁ połączono · ' + cloudFmt(c).slice(0, 4) + '…' + (cloudHold || cloudSHold ? ' · KONFLIKT' : cloudDirty() || cloudSDirty() ? ' · czeka na wysłanie' : ' · zsynchronizowano') : '☁ brak kodu — dotknij ☁ CHMURA');
 }
 
 /* ---------- operacje ---------- */
@@ -72,13 +77,11 @@ async function cloudPush(manual) {
   cloudBusy = true; cloudDirty(true);
   let conflict = false, okk = false;
   try {
-    if (!manual) {
-      const r = await cloudReq('GET');
-      if (r && r.t && Number(r.t) !== cloudBase()) conflict = true;
-    }
+    const r = await cloudReq('GET');   // dokument chmury zawiera też zapis gry (sv/st) — czytamy całość i zmieniamy tylko punkty
+    if (!manual && r && r.t && Number(r.t) !== cloudBase()) conflict = true;
     if (!conflict) {
       pe.t = pe.t || Date.now(); savePe();
-      await cloudReq('PUT', { t: pe.t, pe: { removed: pe.removed, moved: pe.moved, added: pe.added, fmoved: pe.fmoved } });
+      await cloudReq('PUT', Object.assign({}, r || {}, { t: pe.t, pe: { removed: pe.removed, moved: pe.moved, added: pe.added, fmoved: pe.fmoved } }));
       cloudBase(pe.t); cloudDirty(false); cloudHold = false; cloudStatus('☁ wysłano · ' + cloudDate(Date.now()), 'good'); okk = true;
     }
   } catch (e) { cloudStatus('☁ nie wysłano: ' + e.message, 'bad'); }
@@ -125,11 +128,108 @@ function cloudSchedule() {
   clearTimeout(cloudTimer); cloudTimer = setTimeout(() => cloudPush(false), 1500);
 }
 
+/* ---------- ZAPIS GRY w chmurze ----------
+   Synchronizujemy tylko postęp (nie ustawienia telefonu: dźwięk/wibracje/symulacja, ani trwającą misję i tablicę szybkich misji).
+   Dokument chmury = { t, pe, sv, st }: t/pe = punkty, sv = zapis gry, st = znacznik czasu zapisu. Zasady jak przy punktach:
+   nikt nie nadpisuje po cichu — gdy zapis zmieniono w dwóch miejscach, gra pyta. Przed wczytaniem zapisu z chmury stary zapis
+   zostaje w telefonie jako kopia (localStorage, klucz CLOUD_BACKUP). */
+const SYNC_KEYS = ['credits', 'missions', 'best', 'scrap', 'cool', 'comps', 'nodeT', 'areaSel'];
+const UP_MAX = { boots: 2, decrypt: 3, battery: 1 };   // = długości tablic poziomów w kodzie (nowy poziom → podnieś tu)
+function cloudSyncable(s) {
+  const o = {}; SYNC_KEYS.forEach(k => { o[k] = s[k]; });
+  o.up = s.up; o.imp = s.imp; o.areas = s.areas; o.areaN = s.areaN; o.safe = s.safe; return o;
+}
+function cloudCleanSave(o) {   // kod synchronizacji mógł wyciec — dane z chmury traktujemy jak niezaufane
+  if (!o || typeof o !== 'object') return null;
+  const num = (v, max) => (typeof v === 'number' && isFinite(v) && v >= 0 && v <= max) ? v : 0, int = (v, max) => Math.floor(num(v, max));
+  const out = { credits: int(o.credits, 1e9), missions: int(o.missions, 1e6), best: num(o.best, 1e9), scrap: int(o.scrap, 1e9), cool: int(o.cool, 1e9), comps: int(o.comps, 1e9), nodeT: num(o.nodeT, 1e13), up: {}, imp: {}, areas: {}, areaN: {}, areaSel: 'home', safe: [] };
+  for (const k in UP_MAX) out.up[k] = Math.min(UP_MAX[k], Math.floor(num(o.up && o.up[k], 99)));
+  if (typeof o.areaSel === 'string' && /^[\w-]{1,40}$/.test(o.areaSel)) out.areaSel = o.areaSel;
+  const ob = v => (v && typeof v === 'object') ? v : {};
+  for (const k of Object.keys(ob(o.imp)).slice(0, 100)) if (typeof IMPLANTS !== 'undefined' && IMPLANTS[k] && o.imp[k]) out.imp[k] = true;
+  const ar = ob(o.areas); for (const k of Object.keys(ar).slice(0, 200)) if (/^[\w-]{1,40}$/.test(k) && (ar[k] === 'paid' || ar[k] === 'done')) out.areas[k] = ar[k];
+  const an = ob(o.areaN); for (const k of Object.keys(an).slice(0, 200)) if (/^[\w-]{1,40}$/.test(k)) out.areaN[k] = Math.floor(num(an[k], 1e5));
+  for (let i = 0; i < 16; i++) {   // RTDB gubi nulle w tablicach (oddaje obiekt z kluczami-indeksami) — czytamy po indeksie
+    const v = o.safe && o.safe[i], fixed = DEF.safe[i];
+    out.safe.push(fixed === 'lock' || fixed === 'core' ? fixed : (typeof v === 'string' && MODS[v] ? v : null));
+  }
+  return out;
+}
+const cloudLocalProgress = () => !!(Number(save.st) || save.missions > 0);
+function cloudSaveTouch() {   // wołane z persist() w core.js
+  const sig = JSON.stringify(cloudSyncable(save));
+  if (sig === cloudSig) return;
+  cloudSig = sig; save.st = Date.now();
+  cloudSaveSchedule();
+}
+function cloudSaveSchedule() {
+  if (!cloudReady() || !cloudCode()) return;
+  cloudSDirty(true); clearTimeout(cloudSTimer);
+  cloudSTimer = setTimeout(() => { if (cloudBusy) cloudSaveSchedule(); else cloudSavePush(false); }, 4000);
+}
+function cloudApplySave(remote) {
+  const c = cloudCleanSave(remote.sv); if (!c) return false;
+  try { localStorage.setItem(CLOUD_BACKUP, JSON.stringify(save)); } catch (e) {}
+  Object.assign(save, c, { up: Object.assign({}, DEF.up, c.up) });
+  save.st = Number(remote.st) || Date.now();
+  cloudSig = JSON.stringify(cloudSyncable(save)); persist();
+  cloudSBase(save.st); cloudSDirty(false); cloudSHold = false;
+  try { renderMenu(); renderSafe(); } catch (e) {}
+  return true;
+}
+async function cloudSavePush(manual) {
+  if (!cloudReady() || !cloudCode() || cloudBusy) return false;
+  if (cloudSHold && !manual) return false;
+  cloudBusy = true; cloudSDirty(true);
+  let conflict = false, okk = false;
+  try {
+    const r = (await cloudReq('GET')) || {}, rst = Number(r.st) || 0;
+    if (!manual && rst && rst !== cloudSBase()) conflict = true;
+    if (!conflict) {
+      if (!save.st) { save.st = Date.now(); persist(); }
+      await cloudReq('PUT', Object.assign({}, r, { t: Number(r.t) || 0, sv: cloudSyncable(save), st: save.st }));
+      cloudSBase(save.st); cloudSDirty(false); cloudSHold = false; cloudStatus('☁ zapis wysłany · ' + cloudDate(Date.now()), 'good'); okk = true;
+    }
+  } catch (e) { cloudStatus('☁ zapis nie wysłany: ' + e.message, 'bad'); }
+  finally { cloudBusy = false; }
+  if (conflict) { cloudSHold = true; if (!M) await cloudSaveSync(); }
+  return okk;
+}
+async function cloudSavePull() {   // ręcznie: zawsze wczytaj z chmury
+  if (!cloudReady() || !cloudCode() || cloudBusy) return false;
+  if (M) { cloudStatus('☁ trwa misja — dokończ ją przed wczytaniem zapisu', 'bad'); return false; }
+  cloudBusy = true;
+  try {
+    const r = await cloudReq('GET');
+    if (!r || !r.st || !cloudApplySave(r)) { cloudStatus('☁ w chmurze nie ma zapisu gry', 'bad'); return false; }
+    cloudStatus('☁ wczytano zapis · ' + cloudDate(r.st), 'good'); return true;
+  } catch (e) { cloudStatus('☁ nie pobrano zapisu: ' + e.message, 'bad'); return false; }
+  finally { cloudBusy = false; }
+}
+async function cloudSaveSync() {   // automatycznie: start, powrót do aplikacji, powrót sieci
+  if (!cloudReady() || !cloudCode() || cloudBusy) return;
+  let r;
+  cloudBusy = true;
+  try { r = (await cloudReq('GET')) || {}; }
+  catch (e) { cloudBusy = false; return; }
+  cloudBusy = false;
+  const rst = Number(r.st) || 0, base = cloudSBase();
+  const dirty = cloudSDirty() || cloudSHold || (!base && cloudLocalProgress());   // telefon z postępem, który chmura jeszcze nie widziała
+  if (!rst) { if (dirty && cloudLocalProgress()) await cloudSavePush(true); return; }
+  if (rst === base) { if (cloudSDirty() || cloudSHold) await cloudSavePush(true); return; }
+  if (M) { cloudSHold = dirty; return; }   // nie zmieniamy zapisu w trakcie misji
+  if (!dirty) { if (cloudApplySave(r)) cloudStatus('☁ wczytano nowszy zapis · ' + cloudDate(rst), 'good'); return; }
+  cloudSHold = true;
+  const c = cloudCleanSave(r.sv) || { credits: 0, missions: 0 };
+  if (confirm('Zapis w chmurze (' + cloudDate(rst) + ': ' + c.credits + ' ₵, misje: ' + c.missions + ') różni się od zapisu na tym telefonie (' + save.credits + ' ₵, misje: ' + save.missions + ').\n\nOK = wczytaj z chmury (zapis z telefonu trafi do kopii zapasowej)\nAnuluj = nic nie zmieniaj teraz (wyślesz zapis z telefonu przyciskiem w ☁ CHMURA)')) { cloudApplySave(r); cloudStatus('☁ wczytano zapis z chmury', 'good'); }
+  else cloudIdle();
+}
+
 /* ---------- okno ☁ CHMURA ---------- */
 function renderCloud() {
-  const c = cloudCode(), on = cloudOn();
+  const c = cloudCode(), on = cloudReady();
   $('#clInfo').innerHTML = !on ? 'Chmura nie jest skonfigurowana. Wpisz adres bazy Firebase w <b>CLOUD_URL</b> (js/data/config.js) — instrukcja w DEVELOPING.md.'
-    : c ? 'Twoje punkty są kopiowane do chmury. <b>Zapisz ten kod</b> — po reinstalacji aplikacji wpisz go tutaj, a punkty wrócą.'
+    : c ? 'Twoje punkty i <b>zapis gry</b> (₵, złom, ulepszenia, Kryjówka, obszary) są kopiowane do chmury. <b>Zapisz ten kod</b> — po reinstalacji aplikacji wpisz go tutaj, a postęp wróci.'
         : 'Utwórz nowy kod (pierwszy telefon) albo wpisz kod z innego telefonu / z poprzedniej instalacji.';
   $('#clCode').textContent = c ? cloudFmt(c) : '— brak —';
   $('#clNew').hidden = !on || !!c; $('#clJoinRow').hidden = !on || !!c;
@@ -140,23 +240,38 @@ function closeCloud() { $('#cloud').hidden = true; }
 $('#clClose').onclick = closeCloud;
 $('#clNew').onclick = async () => {
   cloudSetCode(cloudNewCode()); renderCloud();
-  await cloudPush(true);                                      // od razu wyślij to, co jest w telefonie
+  await cloudPush(true);                                      // od razu wyślij to, co jest w telefonie (punkty + zapis gry)
+  await cloudSavePush(true);
   renderCloud();
 };
 $('#clJoin').onclick = async () => {
   const c = cloudNorm($('#clInput').value);
   if (c.length !== 16) { cloudStatus('Kod ma 16 znaków (np. ABCD-EFGH-JKLM-NPQR).', 'bad'); return; }
   cloudSetCode(c); $('#clInput').value = ''; renderCloud();
-  const ok = await cloudPull(true);
-  if (!ok && !cloudHasEdits()) cloudSetCode('');                  // zły kod / pusta chmura i nic lokalnie → nie zapamiętuj
+  let remote = null;
+  try { remote = await cloudReq('GET'); } catch (e) { cloudStatus('☁ ' + e.message, 'bad'); cloudSetCode(''); renderCloud(); return; }
+  const hasPts = !!(remote && Number(remote.t) > 0), hasSv = !!(remote && Number(remote.st) > 0);
+  if (!hasPts && !hasSv && (cloudHasEdits() || cloudLocalProgress()) && !confirm('Pod tym kodem nic jeszcze nie ma w chmurze. Użyć go jako nowego i wysłać zapis z tego telefonu?')) { cloudSetCode(''); renderCloud(); return; }
+  if (!hasPts && !hasSv && !cloudHasEdits() && !cloudLocalProgress()) { cloudStatus('☁ pod tym kodem nic nie ma (literówka?)', 'bad'); cloudSetCode(''); renderCloud(); return; }
+  if (hasPts) await cloudPull(true);
+  await cloudSaveSync();                                      // zapis: wczytaj / wyślij / zapytaj przy konflikcie
   renderCloud();
 };
-$('#clPush').onclick = async () => { if (confirm('Nadpisać chmurę punktami z tego telefonu?')) { await cloudPush(true); renderCloud(); } };
-$('#clPull').onclick = async () => { await cloudPull(true); renderCloud(); };
+$('#clPush').onclick = async () => { if (confirm('Nadpisać chmurę punktami i zapisem gry z tego telefonu?')) { await cloudPush(true); await cloudSavePush(true); renderCloud(); } };
+$('#clPull').onclick = async () => {
+  if (!confirm('Wczytać z chmury punkty i zapis gry? Zapis z tego telefonu zostanie zastąpiony (kopia zapasowa zostaje w telefonie).')) return;
+  await cloudPull(false); await cloudSavePull(); renderCloud();
+};
 $('#clCopy').onclick = async () => {
   const c = cloudFmt(cloudCode());
   try { await navigator.clipboard.writeText(c); cloudStatus('Skopiowano kod: ' + c, 'good'); } catch (e) { cloudStatus('Nie udało się skopiować — przepisz kod ręcznie.', 'bad'); }
 };
 $('#clOff').onclick = () => { if (!confirm('Odłączyć ten telefon od chmury? Dane w chmurze zostają — możesz wrócić po kodzie.')) return; cloudSetCode(''); cloudDirty(false); cloudHold = false; renderCloud(); cloudIdle(); };
-window.addEventListener('online', () => cloudSync());
-setTimeout(() => { cloudIdle(); cloudSync(); }, 800);
+cloudSig = JSON.stringify(cloudSyncable(save));
+const cloudAll = async () => { await cloudSync(); await cloudSaveSync(); };
+window.addEventListener('online', () => cloudAll());
+document.addEventListener('visibilitychange', () => {   // wyjście z aplikacji: wyślij od razu (debounce 4 s mógłby nie zdążyć); powrót: sprawdź, czy drugi telefon coś zmienił
+  if (document.visibilityState === 'hidden') { if (cloudSDirty()) { clearTimeout(cloudSTimer); cloudSavePush(false); } }
+  else cloudSaveSync();
+});
+setTimeout(() => { cloudIdle(); cloudAll(); }, 800);

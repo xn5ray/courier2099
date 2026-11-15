@@ -53,7 +53,7 @@ function loadSave() {
   } catch (e) { return d; }
 }
 let save = loadSave();
-const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} };
+const persist = () => { if (typeof cloudSaveTouch === 'function') cloudSaveTouch(); try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} };   // cloudSaveTouch (cloud.js) oznacza zapis do wysłania do chmury
 const cnt = k => save.safe.filter(x => x === k).length;
 function grid() { let use = 0; for (const k in MODS) use += cnt(k) * MODS[k].w; const cap = CORE_W + cnt('gen') * MODS.gen.pw; return { cap, use, ok: use <= cap }; }
 const eff = k => grid().ok ? cnt(k) : 0;   // bonus modułu działa tylko gdy jest prąd
