@@ -10,7 +10,7 @@ const fmt = s => { s = Math.max(0, Math.floor(s)); return String(Math.floor(s / 
 /* ================= NATIVE (Capacitor / Android) ================= */
 const CAP = window.Capacitor, NATIVE = !!(CAP && CAP.isNativePlatform && CAP.isNativePlatform());
 const plug = n => (NATIVE && CAP.Plugins && CAP.Plugins[n]) || null;
-const nGeo = () => plug('Geolocation'), nAwake = () => plug('KeepAwake'), nNotif = () => plug('LocalNotifications'), nStep = () => plug('CapacitorPedometer');
+const nGeo = () => plug('Geolocation'), nAwake = () => plug('KeepAwake'), nNotif = () => plug('LocalNotifications'), nStep = () => plug('CapacitorPedometer'), nBg = () => plug('BackgroundGeolocation');
 const EV_TITLE = { patrol: 'PATROL DRONÓW', quiet: 'CICHY KROK', jam: 'ZAGŁUSZACZ SYGNAŁU', drop: 'DEAD DROP', hold: 'PRZEJĘCIE SYGNAŁU', hacker: 'POTRZEBUJĄCY HAKER', glitch: 'AWARIA CYBERWARE', relay: 'SZYBKI PRZEKAZ', rogue: 'ROGUE DATA GLITCH' };
 const EV_BODY = { patrol: 'Strefa skanowana — obejdź ją lub odczekaj 2 min.', quiet: 'Strefa czujników drgań — idź wolno.', jam: 'Mapa wyłączona na 3 min. Użyj kompasu.', drop: 'Porzucona skrzynia w pobliżu — zniknie za 4 min.', hold: 'Wejdź w strefę i wytrwaj 3 min.', hacker: 'Ranny haker prosi o pomoc — otwórz grę.', glitch: 'Zakłócenia ekranu i błędny dystans.', relay: 'Masz 5 min na dotarcie do punktu bonusowego.', rogue: 'Uciekający glitch w pobliżu — złap go, zanim zniknie!' };
 let notifId = 1;
@@ -40,7 +40,7 @@ async function requireActivity() {
   toast(msg, 'bad', 10000); $('#menuHint').innerHTML = msg;
   return false;
 }
-let nWatch = null;
+let nWatch = null, nBgWatch = null;
 
 /* ================= ZAPIS ================= */
 function loadSave() {
@@ -128,9 +128,38 @@ async function geoOnce() {
     navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 });
   });
 }
+/* GPS w tle: wtyczka BackgroundGeolocation uruchamia serwis na pierwszym planie (stałe powiadomienie), więc pozycja
+   dochodzi także przy zgaszonym ekranie lub innej aplikacji na wierzchu. Zwraca true, gdy śledzenie ruszyło. */
+function startBgWatch() {
+  const b = nBg(); if (!b || typeof b.addWatcher !== 'function') return false;
+  try {
+    const r = b.addWatcher({
+      backgroundTitle: 'COURIER 2099 — misja trwa',
+      backgroundMessage: 'Śledzenie pozycji w tle. Wróć do gry, aby dostarczyć paczkę.',
+      requestPermissions: true, stale: false, distanceFilter: 3
+    }, (p, err) => {
+      if (err) {
+        if (err.code === 'NOT_AUTHORIZED') {
+          toast('GPS W TLE: brak zgody na lokalizację. Ustaw „Zawsze zezwalaj” w uprawnieniach aplikacji.', 'warn', 9000);
+          try { if (confirm('Otworzyć ustawienia aplikacji, żeby włączyć lokalizację „Zawsze”?')) b.openSettings(); } catch (e) {}
+        } else toast('SYGNAŁ GPS: ' + geoErrText({ code: 2 }), 'warn', 6000);
+        return;
+      }
+      if (p) setPos(p.latitude, p.longitude, p.accuracy);
+    });
+    const got = id => { nBgWatch = id; if (!M) { try { b.removeWatcher({ id }); } catch (e) {} nBgWatch = null; } };
+    if (r && typeof r.then === 'function') r.then(got).catch(() => { startFgWatch(); });
+    else if (r != null) got(r);
+    return true;
+  } catch (e) { return false; }
+}
 function startWatch() {
   stopWatch();
   if (sim) return;
+  if (startBgWatch()) return;
+  startFgWatch();
+}
+function startFgWatch() {
   const g = nGeo();
   if (g) {
     // W APK watchPosition bywa wywołaniem z callbackiem: zwraca od razu id (tekst) zamiast obietnicy — obsługujemy oba przypadki.
@@ -153,6 +182,7 @@ function startWatch() {
 }
 function stopWatch() {
   if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  if (nBgWatch != null) { const b = nBg(); if (b) { try { b.removeWatcher({ id: nBgWatch }); } catch (e) {} } nBgWatch = null; }
   if (nWatch != null) { const g = nGeo(); if (g) { try { g.clearWatch({ id: nWatch }); } catch (e) {} } nWatch = null; }
 }
 function setPos(lat, lng, acc) { pos = { lat, lng, acc: acc || 0 }; lastFix = Date.now(); onPosChanged(); }
